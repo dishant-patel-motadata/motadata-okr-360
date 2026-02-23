@@ -38,19 +38,19 @@ import { errorHandler } from './middleware/errorHandler.js';
 // ── Route imports (modules added incrementally each step) ──
 // Uncomment each import as the corresponding module is built.
 import authRoutes from './modules/auth/auth.routes.js';
-import employeeRoutes       from './modules/employees/employees.routes.js';
-import cycleRoutes          from './modules/cycles/cycles.routes.js';
-import competencyRoutes     from './modules/competencies/competencies.routes.js';
-import questionRoutes       from './modules/questions/questions.routes.js';
-import selfFeedbackRoutes   from './modules/selfFeedback/selfFeedback.routes.js';
-import assignmentRoutes     from './modules/assignments/assignments.routes.js';
-import reviewerRoutes       from './modules/reviewers/reviewers.routes.js';
-import surveyRoutes         from './modules/responses/responses.routes.js';
-import scoreRoutes          from './modules/scores/scores.routes.js';
-import resultRoutes         from './modules/reports/results.routes.js';
-import reportRoutes         from './modules/reports/reports.routes.js';
+import employeeRoutes from './modules/employees/employees.routes.js';
+import cycleRoutes from './modules/cycles/cycles.routes.js';
+import competencyRoutes from './modules/competencies/competencies.routes.js';
+import questionRoutes from './modules/questions/questions.routes.js';
+import selfFeedbackRoutes from './modules/selfFeedback/selfFeedback.routes.js';
+import assignmentRoutes from './modules/assignments/assignments.routes.js';
+import reviewerRoutes from './modules/reviewers/reviewers.routes.js';
+import surveyRoutes from './modules/responses/responses.routes.js';
+import scoreRoutes from './modules/scores/scores.routes.js';
+import resultRoutes from './modules/reports/results.routes.js';
+import reportRoutes from './modules/reports/reports.routes.js';
 // import notificationRoutes   from './modules/notifications/notifications.routes.js';
-import adminRoutes          from './modules/admin/admin.routes.js';
+import adminRoutes from './modules/admin/admin.routes.js';
 
 const app = express();
 
@@ -132,39 +132,39 @@ app.get('/', (req, res) => {
     version: 'v1',
     health: '/health',
     routes: {
-      auth:         '/api/auth/*  (sign-in, sign-out, session)',
-      me:           '/api/v1/auth/me',
-      employees:    '/api/v1/employees',
-      cycles:       '/api/v1/cycles',
+      auth: '/api/auth/*  (sign-in, sign-out, session)',
+      me: '/api/v1/auth/me',
+      employees: '/api/v1/employees',
+      cycles: '/api/v1/cycles',
       competencies: '/api/v1/competencies',
-      questions:    '/api/v1/questions',
+      questions: '/api/v1/questions',
       selfFeedback: '/api/v1/self-feedback',
-      assignments:  '/api/v1/assignments',
-      reviewers:    '/api/v1/reviewers',
-      surveys:      '/api/v1/surveys',
-      scores:       '/api/v1/scores',
-      results:      '/api/v1/results',
-      reports:      '/api/v1/reports',
-      admin:        '/api/v1/admin',
+      assignments: '/api/v1/assignments',
+      reviewers: '/api/v1/reviewers',
+      surveys: '/api/v1/surveys',
+      scores: '/api/v1/scores',
+      results: '/api/v1/results',
+      reports: '/api/v1/reports',
+      admin: '/api/v1/admin',
     },
   });
 });
 
 // ── API v1 routes ─────────────────────────────────────────
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/employees',      employeeRoutes);
-app.use('/api/v1/cycles',         cycleRoutes);
-app.use('/api/v1/competencies',   competencyRoutes);
-app.use('/api/v1/questions',      questionRoutes);
-app.use('/api/v1/self-feedback',  selfFeedbackRoutes);
-app.use('/api/v1/assignments',    assignmentRoutes);
-app.use('/api/v1/reviewers',      reviewerRoutes);
-app.use('/api/v1/surveys',        surveyRoutes);
-app.use('/api/v1/scores',         scoreRoutes);
-app.use('/api/v1/results',        resultRoutes);
-app.use('/api/v1/reports',        reportRoutes);
+app.use('/api/v1/employees', employeeRoutes);
+app.use('/api/v1/cycles', cycleRoutes);
+app.use('/api/v1/competencies', competencyRoutes);
+app.use('/api/v1/questions', questionRoutes);
+app.use('/api/v1/self-feedback', selfFeedbackRoutes);
+app.use('/api/v1/assignments', assignmentRoutes);
+app.use('/api/v1/reviewers', reviewerRoutes);
+app.use('/api/v1/surveys', surveyRoutes);
+app.use('/api/v1/scores', scoreRoutes);
+app.use('/api/v1/results', resultRoutes);
+app.use('/api/v1/reports', reportRoutes);
 // app.use('/api/v1/notifications',  notificationRoutes);
-app.use('/api/v1/admin',          adminRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // ── 404 + Global error handler (must be last) ──────────────
 app.use(notFound);

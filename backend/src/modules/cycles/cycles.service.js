@@ -172,7 +172,7 @@ export async function activateCycleService(cycleId, requestingUser) {
     if (overlap) {
       const err = new Error(
         `Cannot activate: cycle "${overlap.cycle_name}" (${overlap.status}) overlaps these dates ` +
-          `(${overlap.start_date} – ${overlap.end_date}).`
+        `(${overlap.start_date} – ${overlap.end_date}).`
       );
       err.status = 409;
       throw err;
@@ -271,7 +271,7 @@ async function _transitionCycle(cycleId, targetStatus, requestingUser, preCheck)
   if (!allowed.includes(targetStatus)) {
     const err = new Error(
       `Cannot transition "${cycle.cycle_name}" from ${cycle.status} to ${targetStatus}. ` +
-        `Allowed next states: ${allowed.join(', ') || 'none'}.`
+      `Allowed next states: ${allowed.join(', ') || 'none'}.`
     );
     err.status = 409;
     throw err;
