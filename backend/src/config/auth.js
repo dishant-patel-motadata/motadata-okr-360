@@ -31,7 +31,7 @@ const pool = new Pool({
     max: 10,          // max connections in pool
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 5000,
-    ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    ssl: { rejectUnauthorized: false },
 });
 
 // // TEMP: sanity DB test
@@ -54,11 +54,8 @@ export const auth = betterAuth({
     secret: env.BETTER_AUTH_SECRET,
 
     // Database adapter — pg (PostgreSQL / Supabase)
-    database: {
-        type: 'pg',
-        pool,
-    },
-    // database: pgAdapter(pool),
+    // better-auth v1.x: pass the Pool instance directly
+    database: pool,
 
     // Session configuration
     session: {
