@@ -6,14 +6,46 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl",        "value": "http://localhost:3000", "type": "string" },
-    { "key": "cycleId",        "value": "",                      "type": "string" },
-    { "key": "employeeId",     "value": "EMP-002",               "type": "string" },
-    { "key": "assignmentId",   "value": "",                      "type": "string" },
-    { "key": "reviewerId",     "value": "",                      "type": "string" },
-    { "key": "accessToken",    "value": "",                      "type": "string" },
-    { "key": "competencyId",   "value": "COMM",                  "type": "string" },
-    { "key": "questionId",     "value": "IC-01",                 "type": "string" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "cycleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employeeId",
+      "value": "EMP-002",
+      "type": "string"
+    },
+    {
+      "key": "assignmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reviewerId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "competencyId",
+      "value": "COMM",
+      "type": "string"
+    },
+    {
+      "key": "questionId",
+      "value": "IC-01",
+      "type": "string"
+    }
   ],
   "event": [
     {
