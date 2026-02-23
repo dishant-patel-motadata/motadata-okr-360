@@ -136,7 +136,7 @@ describe('POST /api/v1/cycles', () => {
     );
     const res = await request(app)
       .post('/api/v1/cycles')
-      .send({ cycle_name: 'Test Cycle', start_date: '2026-01-01', end_date: '2026-04-01', duration_months: 3 })
+      .send({ cycle_name: 'Test Cycle', start_date: '2026-01-01', duration_months: 3 })
       .set('Cookie', 'session=test');
     expect(res.status).toBe(403);
   });
@@ -153,7 +153,7 @@ describe('POST /api/v1/cycles', () => {
     expect(res.status).toBe(422);
   });
 
-  it('returns 422 when end_date <= start_date', async () => {
+  it('returns 422 when duration_months is not one of 3, 4, 6, 12', async () => {
     asCxo();
     supabaseAdmin.from.mockImplementation((t) =>
       t === 'employees' ? employeeQueryChain() : cycleQueryChain()
@@ -161,10 +161,9 @@ describe('POST /api/v1/cycles', () => {
     const res = await request(app)
       .post('/api/v1/cycles')
       .send({
-        cycle_name: 'Bad Dates',
-        start_date: '2026-04-01',
-        end_date: '2026-01-01',
-        duration_months: 3,
+        cycle_name: 'Bad Duration',
+        start_date: '2026-01-01',
+        duration_months: 5,          // 5 is not allowed
       })
       .set('Cookie', 'session=test');
     expect(res.status).toBe(422);
@@ -180,7 +179,6 @@ describe('POST /api/v1/cycles', () => {
       .send({
         cycle_name: 'Q1 2026 Review',
         start_date: '2026-01-01',
-        end_date: '2026-03-31',
         duration_months: 3,
       })
       .set('Cookie', 'session=test');

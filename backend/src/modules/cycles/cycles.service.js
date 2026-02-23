@@ -37,7 +37,27 @@ const VALID_TRANSITIONS = {
   COMPLETED: ['PUBLISHED'],
   PUBLISHED: [],
 };
+// ── Date helper ─────────────────────────────────────────
 
+/**
+ * Derive end_date from start_date + duration_months - 1 day.
+ * Uses UTC arithmetic to avoid DST/timezone skew.
+ *
+ * Examples:
+ *   2026-01-01 + 3  months  →  2026-03-31
+ *   2026-01-01 + 6  months  →  2026-06-30
+ *   2026-01-01 + 12 months  →  2026-12-31
+ *
+ * @param {string} startDateStr  YYYY-MM-DD
+ * @param {number} durationMonths  one of 3 | 4 | 6 | 12
+ * @returns {string}  YYYY-MM-DD
+ */
+function computeEndDate(startDateStr, durationMonths) {
+  const d = new Date(startDateStr + 'T00:00:00Z');
+  d.setUTCMonth(d.getUTCMonth() + durationMonths);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 // ── List ───────────────────────────────────────────────────
 
 export async function listCyclesService({ page, limit, status }) {
@@ -68,10 +88,12 @@ export async function getCycleService(cycleId) {
  * but also enforced here as a defence-in-depth measure.
  */
 export async function createCycleService(body, requestingUser) {
+  const endDate = computeEndDate(body.start_date, body.duration_months);
+
   const cycle = await createCycle({
     cycle_name: body.cycle_name,
     start_date: body.start_date,
-    end_date: body.end_date,
+    end_date: endDate,
     duration_months: body.duration_months,
     grace_period_days: body.grace_period_days,
     enable_self_feedback: body.enable_self_feedback,
@@ -108,16 +130,13 @@ export async function updateCycleService(cycleId, updates, requestingUser) {
     throw err;
   }
 
-  // If dates are changing, validate end > start
-  const newStart = updates.start_date ?? existing.start_date;
-  const newEnd = updates.end_date ?? existing.end_date;
-  if (new Date(newEnd) <= new Date(newStart)) {
-    const err = new Error('end_date must be after start_date.');
-    err.status = 422;
-    throw err;
-  }
+  // Always recompute end_date from (possibly updated) start_date + duration_months.
+  // This keeps end_date consistent and read-only from the client's perspective.
+  const newStart    = updates.start_date      ?? existing.start_date;
+  const newDuration = updates.duration_months ?? existing.duration_months;
+  const newEndDate  = computeEndDate(newStart, newDuration);
 
-  const updated = await updateCycle(cycleId, updates);
+  const updated = await updateCycle(cycleId, { ...updates, end_date: newEndDate });
 
   await writeAuditLog({
     userId: requestingUser.employeeId,

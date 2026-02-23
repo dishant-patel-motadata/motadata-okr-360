@@ -111,7 +111,7 @@ const run = async () => {
     console.error(`\n❌  ${err.message}\n`);
     process.exit(1);
   } finally {
-    await pool.end();
+    if (pool && typeof pool.end === 'function') await pool.end();
   }
 };
 
