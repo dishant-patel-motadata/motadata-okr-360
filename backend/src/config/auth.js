@@ -162,11 +162,17 @@ export const auth = betterAuth({
         autoSignIn: false,
     },
 
-    trustedOrigins: env.CORS_ORIGINS.split(',').map((o) => o.trim()),
+    trustedOrigins: [
+        env.BETTER_AUTH_URL,                                   // http://localhost:3000 (server itself — for Postman / curl testing)
+        ...env.CORS_ORIGINS.split(',').map((o) => o.trim()),   // frontend origins from .env
+    ],
 
     advanced: {
         cookiePrefix: 'okr360',
         generateId: () => crypto.randomUUID(),
+        // Allow requests without an Origin header (e.g. Postman / curl / mobile clients).
+        // CSRF is still enforced in production via trustedOrigins.
+        disableCSRFCheck: env.NODE_ENV !== 'production',
     },
 });
 
