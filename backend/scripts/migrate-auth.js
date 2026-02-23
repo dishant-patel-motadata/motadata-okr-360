@@ -9,118 +9,225 @@
  * Run once before first server start:
  *   node scripts/migrate-auth.js
  *
- * What this script does:
- *   1. Connects to the Supabase PostgreSQL database
- *   2. Generates the better-auth schema DDL
- *   3. Executes it via the pg pool
- *   4. Verifies tables were created
+ * Connection strategy (tried in order):
+ *   1. Supabase Management API (HTTPS) — requires SUPABASE_ACCESS_TOKEN in .env
+ *      Get a token at: https://supabase.com/dashboard/account/tokens
+ *   2. Direct pg connection — requires DATABASE_URL to be reachable
  *
  * Safe to re-run (uses IF NOT EXISTS).
  */
 
 import 'dotenv/config';
-import { auth, pool } from '../src/config/auth.js';
 import { logger } from '../src/utils/logger.js';
 
+const PROJECT_REF = 'vfpjywuhqegxbfftfvbl';
+const ACCESS_TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
+const DATABASE_URL = process.env.DATABASE_URL;
+
+// Drop old tables first (handles schema migration from snake_case to camelCase)
+const dropSchema = `
+  DROP TABLE IF EXISTS "verification" CASCADE;
+  DROP TABLE IF EXISTS "session" CASCADE;
+  DROP TABLE IF EXISTS "account" CASCADE;
+  DROP TABLE IF EXISTS "user" CASCADE;
+`;
+
+// Column names use camelCase — must match better-auth's internal schema exactly
+const schema = `
+  CREATE TABLE IF NOT EXISTS "user" (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    email           TEXT NOT NULL UNIQUE,
+    "emailVerified" BOOLEAN NOT NULL DEFAULT FALSE,
+    image           TEXT,
+    "createdAt"     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt"     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS "session" (
+    id            TEXT PRIMARY KEY,
+    "expiresAt"   TIMESTAMPTZ NOT NULL,
+    token         TEXT NOT NULL UNIQUE,
+    "createdAt"   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt"   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "ipAddress"   TEXT,
+    "userAgent"   TEXT,
+    "userId"      TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS "account" (
+    id                       TEXT PRIMARY KEY,
+    "accountId"              TEXT NOT NULL,
+    "providerId"             TEXT NOT NULL,
+    "userId"                 TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    "accessToken"            TEXT,
+    "refreshToken"           TEXT,
+    "idToken"                TEXT,
+    "accessTokenExpiresAt"   TIMESTAMPTZ,
+    "refreshTokenExpiresAt"  TIMESTAMPTZ,
+    scope                    TEXT,
+    password                 TEXT,
+    "createdAt"              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updatedAt"              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS "verification" (
+    id            TEXT PRIMARY KEY,
+    identifier    TEXT NOT NULL,
+    value         TEXT NOT NULL,
+    "expiresAt"   TIMESTAMPTZ NOT NULL,
+    "createdAt"   TIMESTAMPTZ DEFAULT NOW(),
+    "updatedAt"   TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_session_userId    ON "session"("userId");
+  CREATE INDEX IF NOT EXISTS idx_session_token     ON "session"(token);
+  CREATE INDEX IF NOT EXISTS idx_account_userId    ON "account"("userId");
+  CREATE INDEX IF NOT EXISTS idx_account_provider  ON "account"("providerId", "accountId");
+  CREATE INDEX IF NOT EXISTS idx_user_email        ON "user"(email);
+  CREATE INDEX IF NOT EXISTS idx_verification_id   ON "verification"(identifier);
+`;
+
+const verifyQuery = `
+  SELECT table_name
+  FROM information_schema.tables
+  WHERE table_schema = 'public'
+    AND table_name IN ('user', 'session', 'account', 'verification')
+  ORDER BY table_name;
+`;
+
+// ── Strategy 1: Supabase Management API (HTTPS — no TCP required) ──────────
+async function migrateViaManagementApi() {
+  if (!ACCESS_TOKEN || ACCESS_TOKEN === 'your-personal-access-token-here') {
+    throw new Error(
+      'SUPABASE_ACCESS_TOKEN not set. ' +
+      'Generate one at https://supabase.com/dashboard/account/tokens and add it to .env'
+    );
+  }
+
+  const base = `https://api.supabase.com/v1/projects/${PROJECT_REF}/database/query`;
+  const headers = {
+    Authorization: `Bearer ${ACCESS_TOKEN}`,
+    'Content-Type': 'application/json',
+  };
+
+  logger.info('Running migration via Supabase Management API...');
+
+  // Drop old tables (handles snake_case → camelCase schema migration)
+  const dropRes = await fetch(base, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query: dropSchema }),
+  });
+  if (!dropRes.ok) {
+    const body = await dropRes.text();
+    throw new Error(`Management API DROP failed (${dropRes.status}): ${body}`);
+  }
+
+  // Execute DDL
+  const ddlRes = await fetch(base, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query: schema }),
+  });
+
+  if (!ddlRes.ok) {
+    const body = await ddlRes.text();
+    throw new Error(`Management API DDL failed (${ddlRes.status}): ${body}`);
+  }
+
+  // Verify tables
+  const verifyRes = await fetch(base, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query: verifyQuery }),
+  });
+
+  if (!verifyRes.ok) {
+    const body = await verifyRes.text();
+    throw new Error(`Management API verify failed (${verifyRes.status}): ${body}`);
+  }
+
+  // Management API returns rows as a plain array (not wrapped in { data: [...] })
+  const rows = await verifyRes.json();
+  const tableNames = Array.isArray(rows) ? rows : (rows.data ?? rows.result ?? []);
+  return tableNames.map((r) => r.table_name);
+}
+
+// ── Strategy 2: Direct pg connection ────────────────────────────────────────
+async function migrateViaPg() {
+  // Dynamic import so missing pg doesn't crash the Management API path
+  const { Pool } = await import('pg');
+  const { default: dns } = await import('node:dns');
+  dns.setDefaultResultOrder('ipv4first');
+
+  if (!DATABASE_URL) throw new Error('DATABASE_URL is not set');
+
+  const pool = new Pool({
+    connectionString: DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 8000,
+    family: 4,
+  });
+
+  logger.info('Running migration via direct pg connection...');
+
+  const client = await pool.connect();
+  try {
+    await client.query(dropSchema);
+    await client.query(schema);
+
+    const result = await client.query(verifyQuery);
+    return result.rows.map((r) => r.table_name);
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
 const migrate = async () => {
   logger.info('Starting better-auth migration...');
 
-  let client;
+  let created;
+  let usedStrategy;
+
+  // Try Management API first (works even without direct TCP access)
   try {
-    client = await pool.connect();
+    created = await migrateViaManagementApi();
+    usedStrategy = 'Management API';
+  } catch (apiErr) {
+    logger.warn(`Management API unavailable: ${apiErr.message}`);
+    logger.info('Falling back to direct pg connection...');
 
-    // Generate the SQL schema from the better-auth instance
-    // better-auth v1 provides `generateSQL()` or relies on the CLI
-    // For pg adapter, we create the tables manually following better-auth's schema spec
-
-    const schema = `
-      -- better-auth: user table
-      CREATE TABLE IF NOT EXISTS "user" (
-        id                TEXT PRIMARY KEY,
-        name              TEXT NOT NULL,
-        email             TEXT NOT NULL UNIQUE,
-        email_verified    BOOLEAN NOT NULL DEFAULT FALSE,
-        image             TEXT,
-        created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    try {
+      created = await migrateViaPg();
+      usedStrategy = 'direct pg';
+    } catch (pgErr) {
+      logger.error('Both migration strategies failed.', {
+        managementApi: apiErr.message,
+        pg: pgErr.message,
+      });
+      logger.error(
+        '\n  To fix:\n' +
+        '  1. Add your Supabase Personal Access Token to .env:\n' +
+        '     SUPABASE_ACCESS_TOKEN=<token from https://supabase.com/dashboard/account/tokens>\n' +
+        '  2. OR paste scripts/migrate-auth.sql into the Supabase SQL Editor manually.\n'
       );
-
-      -- better-auth: session table
-      CREATE TABLE IF NOT EXISTS "session" (
-        id            TEXT PRIMARY KEY,
-        expires_at    TIMESTAMPTZ NOT NULL,
-        token         TEXT NOT NULL UNIQUE,
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        ip_address    TEXT,
-        user_agent    TEXT,
-        user_id       TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE
-      );
-
-      -- better-auth: account table (stores hashed passwords + OAuth tokens)
-      CREATE TABLE IF NOT EXISTS "account" (
-        id                        TEXT PRIMARY KEY,
-        account_id                TEXT NOT NULL,
-        provider_id               TEXT NOT NULL,
-        user_id                   TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
-        access_token              TEXT,
-        refresh_token             TEXT,
-        id_token                  TEXT,
-        access_token_expires_at   TIMESTAMPTZ,
-        refresh_token_expires_at  TIMESTAMPTZ,
-        scope                     TEXT,
-        password                  TEXT,
-        created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      );
-
-      -- better-auth: verification table (email verification tokens)
-      CREATE TABLE IF NOT EXISTS "verification" (
-        id          TEXT PRIMARY KEY,
-        identifier  TEXT NOT NULL,
-        value       TEXT NOT NULL,
-        expires_at  TIMESTAMPTZ NOT NULL,
-        created_at  TIMESTAMPTZ DEFAULT NOW(),
-        updated_at  TIMESTAMPTZ DEFAULT NOW()
-      );
-
-      -- Indexes for performance
-      CREATE INDEX IF NOT EXISTS idx_session_user_id   ON "session"(user_id);
-      CREATE INDEX IF NOT EXISTS idx_session_token     ON "session"(token);
-      CREATE INDEX IF NOT EXISTS idx_account_user_id   ON "account"(user_id);
-      CREATE INDEX IF NOT EXISTS idx_account_provider  ON "account"(provider_id, account_id);
-      CREATE INDEX IF NOT EXISTS idx_user_email        ON "user"(email);
-      CREATE INDEX IF NOT EXISTS idx_verification_identifier ON "verification"(identifier);
-    `;
-
-    await client.query(schema);
-
-    // Verify tables exist
-    const result = await client.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-        AND table_name IN ('user', 'session', 'account', 'verification')
-      ORDER BY table_name;
-    `);
-
-    const created = result.rows.map((r) => r.table_name);
-    logger.info('better-auth tables confirmed:', { tables: created });
-
-    if (created.length !== 4) {
-      const missing = ['user', 'session', 'account', 'verification'].filter(
-        (t) => !created.includes(t)
-      );
-      logger.warn('Some tables may not have been created:', { missing });
-    } else {
-      logger.info('✅  better-auth migration complete — all 4 tables ready.');
+      process.exit(1);
     }
-  } catch (err) {
-    logger.error('Migration failed:', { error: err.message, stack: err.stack });
-    process.exit(1);
-  } finally {
-    if (client) client.release();
-    await pool.end();
+  }
+
+  logger.info(`Migration ran via ${usedStrategy}.`);
+
+  const missing = ['user', 'session', 'account', 'verification'].filter(
+    (t) => !created.includes(t)
+  );
+
+  if (missing.length > 0) {
+    logger.warn('Some tables may be missing:', { missing });
+  } else {
+    logger.info('✅  better-auth migration complete — all 4 tables ready.', { tables: created });
   }
 };
 

@@ -27,6 +27,9 @@ const envSchema = z.object({
   BETTER_AUTH_URL: z.string().url({ message: 'BETTER_AUTH_URL must be a valid URL' }),
   SESSION_EXPIRY_SECONDS: z.string().default('604800'),
 
+  // Supabase Personal Access Token — used only by migrate-auth.js
+  SUPABASE_ACCESS_TOKEN: z.string().optional(),
+
   // Email (SMTP) — optional until Notifications module (STEP 11) is wired in
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.string().default('587'),

@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "better-auth-best-practices": {
+      "source": "better-auth/skills",
+      "sourceType": "github",
+      "computedHash": "a24359053259e55a75972cab4bf0b0e37e1393bac5f3756ec2e3a7b4b3778d2a"
+    },
     "nodejs-best-practices": {
       "source": "davila7/claude-code-templates",
       "sourceType": "github",

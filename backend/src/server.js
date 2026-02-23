@@ -9,6 +9,11 @@
  */
 
 import 'dotenv/config';
+// Node.js 18 shim: global `crypto` (WebCrypto) was only made a bare global in Node 19+
+// better-auth uses `crypto.subtle` which requires this shim on Node 18.
+import { webcrypto } from 'node:crypto';
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
+
 import app from './app.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
@@ -36,9 +41,11 @@ const shutdown = async (signal) => {
   server.close(async () => {
     logger.info('HTTP server closed');
 
-    // Close the PostgreSQL pool used by better-auth
-    await pool.end();
-    logger.info('PostgreSQL pool closed');
+    // pool is null when using the Supabase HTTPS adapter (no pg TCP connection)
+    if (pool && typeof pool.end === 'function') {
+      await pool.end();
+      logger.info('PostgreSQL pool closed');
+    }
 
     process.exit(0);
   });

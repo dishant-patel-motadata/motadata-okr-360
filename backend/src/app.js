@@ -124,6 +124,32 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ── Root route — API index ─────────────────────────────────
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'OKR-360 API',
+    version: 'v1',
+    health: '/health',
+    routes: {
+      auth:         '/api/auth/*  (sign-in, sign-out, session)',
+      me:           '/api/v1/auth/me',
+      employees:    '/api/v1/employees',
+      cycles:       '/api/v1/cycles',
+      competencies: '/api/v1/competencies',
+      questions:    '/api/v1/questions',
+      selfFeedback: '/api/v1/self-feedback',
+      assignments:  '/api/v1/assignments',
+      reviewers:    '/api/v1/reviewers',
+      surveys:      '/api/v1/surveys',
+      scores:       '/api/v1/scores',
+      results:      '/api/v1/results',
+      reports:      '/api/v1/reports',
+      admin:        '/api/v1/admin',
+    },
+  });
+});
+
 // ── API v1 routes ─────────────────────────────────────────
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/employees',      employeeRoutes);

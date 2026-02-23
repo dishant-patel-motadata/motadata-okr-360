@@ -3,17 +3,11 @@
  *
  * better-auth instance configuration.
  *
- * Responsibilities:
- *   - Manages user credentials, sessions, and token rotation
- *   - Uses a direct PostgreSQL adapter (pg) pointed at the
- *     same Supabase database as the rest of the app
- *   - better-auth owns its own tables: user, session, account,
- *     verification — fully separate from the 15 business tables
- *   - RBAC roles are NOT stored in better-auth; they are read
- *     from employees.group_name at session time via the
- *     authenticateSession middleware
+ * Uses a custom Supabase JS adapter (HTTPS) instead of a direct
+ * pg TCP connection — required because the host machine has no
+ * IPv6 routing to Supabase's direct DB endpoint.
  *
- * Auth tables created by better-auth (do not touch manually):
+ * Auth tables (created by scripts/migrate-auth.js):
  *   user, session, account, verification
  *
  * Mounting:
@@ -21,128 +15,160 @@
  */
 
 import { betterAuth } from 'better-auth';
-import { Pool } from 'pg';
+import { createAdapterFactory } from 'better-auth/adapters';
+import { createClient } from '@supabase/supabase-js';
 import { env } from './env.js';
-import crypto from "node:crypto";
+import crypto from 'node:crypto';
 
-// ── PostgreSQL connection pool (shared with better-auth) ───
-const pool = new Pool({
-    connectionString: env.DATABASE_URL,
-    max: 10,          // max connections in pool
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
-    ssl: { rejectUnauthorized: false },
+// ── Supabase service-role client (HTTPS — no pg TCP needed) ─
+const supa = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 });
 
-// // TEMP: sanity DB test
-// try {
-//     const client = await pool.connect();
-//     console.log("✅ PG connected successfully");
-//     client.release();
-// } catch (err) {
-//     console.error("❌ PG connection failed", err);
-// }
+// ── Custom better-auth adapter backed by Supabase JS client ─
+// createAdapterFactory signature: ({ config, adapter }) => (betterAuthOptions) => adapterInstance
+const supabaseAdapterFactory = createAdapterFactory({
+    config: {
+        adapterId: 'supabase-https',
+        adapterName: 'Supabase HTTPS Adapter',
+        usePlural: false,           // tables: user / session / account / verification (singular)
+        supportsBooleans: true,
+        supportsDates: true,
+        supportsJSON: true,
+        supportsNumericIds: false,
+        supportsUUIDs: false,
+        supportsArrays: false,
+    },
+    // adapter factory receives field-name helpers and returns the method implementations
+    adapter: ({ getFieldName, getModelName }) => {
 
-// console.log(env.DATABASE_URL)
+        // Translate better-auth logical field names (camelCase) → DB column names (snake_case)
+        function applyWhere(query, model, where = []) {
+            for (const { field, value, operator = 'eq' } of where) {
+                const col = getFieldName({ model, field });
+                switch (operator) {
+                    case 'eq':          query = query.eq(col, value);           break;
+                    case 'ne':          query = query.neq(col, value);          break;
+                    case 'lt':          query = query.lt(col, value);           break;
+                    case 'lte':         query = query.lte(col, value);          break;
+                    case 'gt':          query = query.gt(col, value);           break;
+                    case 'gte':         query = query.gte(col, value);          break;
+                    case 'in':          query = query.in(col, Array.isArray(value) ? value : [value]); break;
+                    case 'contains':    query = query.ilike(col, `%${value}%`); break;
+                    case 'starts_with': query = query.ilike(col, `${value}%`);  break;
+                    case 'ends_with':   query = query.ilike(col, `%${value}`);  break;
+                    default:            query = query.eq(col, value);
+                }
+            }
+            return query;
+        }
+
+        function translateSelect(model, select) {
+            if (!select?.length) return '*';
+            return select.map(f => getFieldName({ model, field: f })).join(',');
+        }
+
+        return {
+            async create({ model, data, select }) {
+                const table = getModelName(model);
+                const { data: row, error } = await supa
+                    .from(table).insert(data)
+                    .select(translateSelect(model, select))
+                    .single();
+                if (error) throw new Error(`[supabase-adapter] create ${table}: ${error.message}`);
+                return row;
+            },
+            async findOne({ model, where, select }) {
+                const table = getModelName(model);
+                let q = supa.from(table).select(translateSelect(model, select));
+                q = applyWhere(q, model, where);
+                const { data, error } = await q.maybeSingle();
+                if (error) throw new Error(`[supabase-adapter] findOne ${table}: ${error.message}`);
+                return data ?? null;
+            },
+            async findMany({ model, where, limit, offset, sortBy }) {
+                const table = getModelName(model);
+                let q = supa.from(table).select('*');
+                q = applyWhere(q, model, where);
+                if (sortBy) q = q.order(getFieldName({ model, field: sortBy.field }), { ascending: sortBy.direction === 'asc' });
+                if (limit)  q = q.limit(limit);
+                if (offset) q = q.range(offset, offset + (limit ?? 100) - 1);
+                const { data, error } = await q;
+                if (error) throw new Error(`[supabase-adapter] findMany ${table}: ${error.message}`);
+                return data ?? [];
+            },
+            async update({ model, where, update }) {
+                const table = getModelName(model);
+                let q = supa.from(table).update(update);
+                q = applyWhere(q, model, where);
+                const { data, error } = await q.select().maybeSingle();
+                if (error) throw new Error(`[supabase-adapter] update ${table}: ${error.message}`);
+                return data ?? null;
+            },
+            async updateMany({ model, where, update }) {
+                const table = getModelName(model);
+                let q = supa.from(table).update(update);
+                q = applyWhere(q, model, where);
+                const { data, error } = await q.select();
+                if (error) throw new Error(`[supabase-adapter] updateMany ${table}: ${error.message}`);
+                return data?.length ?? 0;
+            },
+            async delete({ model, where }) {
+                const table = getModelName(model);
+                let q = supa.from(table).delete();
+                q = applyWhere(q, model, where);
+                const { error } = await q;
+                if (error) throw new Error(`[supabase-adapter] delete ${table}: ${error.message}`);
+            },
+            async deleteMany({ model, where }) {
+                const table = getModelName(model);
+                let q = supa.from(table).delete();
+                q = applyWhere(q, model, where);
+                const { data, error } = await q.select();
+                if (error) throw new Error(`[supabase-adapter] deleteMany ${table}: ${error.message}`);
+                return data?.length ?? 0;
+            },
+            async count({ model, where }) {
+                const table = getModelName(model);
+                let q = supa.from(table).select('*', { count: 'exact', head: true });
+                q = applyWhere(q, model, where);
+                const { count, error } = await q;
+                if (error) throw new Error(`[supabase-adapter] count ${table}: ${error.message}`);
+                return count ?? 0;
+            },
+        };
+    },
+});
 
 // ── better-auth instance ───────────────────────────────────
 export const auth = betterAuth({
-    // Exposed base URL — used for callback URLs and CORS
     baseURL: env.BETTER_AUTH_URL,
-
-    // Secret for signing sessions and tokens
     secret: env.BETTER_AUTH_SECRET,
 
-    // Database adapter — pg (PostgreSQL / Supabase)
-    // better-auth v1.x: pass the Pool instance directly
-    database: pool,
+    // Custom Supabase JS adapter — pure HTTPS, no direct pg TCP connection
+    database: supabaseAdapterFactory,
 
-    // Session configuration
     session: {
-        expiresIn: parseInt(env.SESSION_EXPIRY_SECONDS, 10), // default 7 days
-        updateAge: 86400, // refresh session timestamp if older than 1 day
-        cookieCache: {
-            enabled: true,
-            maxAge: 300, // 5-minute client-side cache to reduce DB hits
-        },
+        expiresIn: parseInt(env.SESSION_EXPIRY_SECONDS, 10),
+        updateAge: 86400,
+        cookieCache: { enabled: true, maxAge: 300 },
     },
 
-    // Enable email + password authentication
     emailAndPassword: {
         enabled: true,
-        requireEmailVerification: false, // employees are pre-seeded via AD sync
+        requireEmailVerification: false,
         minPasswordLength: 8,
         maxPasswordLength: 128,
-        autoSignIn: false, // explicit login only
+        autoSignIn: false,
     },
 
-    // Trust headers from reverse proxy in production
     trustedOrigins: env.CORS_ORIGINS.split(',').map((o) => o.trim()),
 
-    // Advanced settings
     advanced: {
-        // Use consistent cookie naming
         cookiePrefix: 'okr360',
-        // Generate secure tokens
         generateId: () => crypto.randomUUID(),
     },
 });
 
-export { pool };
-
-
-// import "dotenv/config";
-// import crypto from "node:crypto";
-// import { betterAuth } from "better-auth";
-// import { Pool } from "pg";
-// import { env } from "./env.js";
-
-// // ── PostgreSQL pool ─────────────────────────────────────────
-// export const pool = new Pool({
-//   connectionString: env.DATABASE_URL,
-//   max: 10,
-//   idleTimeoutMillis: 30_000,
-//   connectionTimeoutMillis: 5_000,
-//   ssl:
-//     env.NODE_ENV === "production"
-//       ? { rejectUnauthorized: false }
-//       : false,
-// });
-
-// // ── Better Auth ─────────────────────────────────────────────
-// export const auth = betterAuth({
-//   baseURL: env.BETTER_AUTH_URL,
-//   secret: env.BETTER_AUTH_SECRET,
-
-//   // ✅ THIS IS CORRECT FOR CURRENT better-auth
-//   database: {
-//     type: "pg",
-//     pool,
-//   },
-
-//   session: {
-//     expiresIn: Number(env.SESSION_EXPIRY_SECONDS ?? 60 * 60 * 24 * 7),
-//     updateAge: 86_400,
-//     cookieCache: {
-//       enabled: true,
-//       maxAge: 300,
-//     },
-//   },
-
-//   emailAndPassword: {
-//     enabled: true,
-//     requireEmailVerification: false,
-//     minPasswordLength: 8,
-//     maxPasswordLength: 128,
-//     autoSignIn: false,
-//   },
-
-//   trustedOrigins: env.CORS_ORIGINS
-//     .split(",")
-//     .map((o) => o.trim()),
-
-//   advanced: {
-//     cookiePrefix: "okr360",
-//     generateId: () => crypto.randomUUID(),
-//   },
-// });
+// pool is null — using Supabase HTTPS adapter, no pg TCP connection
+export const pool = null;
