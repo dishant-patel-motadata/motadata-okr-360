@@ -692,68 +692,6 @@ Final Score = (3 + 4 + 3 + 4) / 4
 | Email          | SMTP (Outlook)      |
 | Notifications  | MS Teams Webhooks   |
 | PDF Generation | As per convenience  |
-
-### 6.2 API Design
-
-REST API with JSON responses. Base URL: `/api/v1/`
-
-#### 6.2.1 Authentication Endpoints
-
-| Method | Endpoint     | Description                 |
-| ------ | ------------ | --------------------------- |
-| POST   | /auth/login  | Login with AD credentials   |
-| POST   | /auth/logout | Logout and invalidate token |
-| GET    | /auth/me     | Get current user profile    |
-
-#### 6.2.2 Review Cycle Endpoints
-
-| Method | Endpoint             | Description       |
-| ------ | -------------------- | ----------------- |
-| GET    | /cycles              | List all cycles   |
-| POST   | /cycles              | Create new cycle  |
-| GET    | /cycles/:id          | Get cycle details |
-| PUT    | /cycles/:id          | Update cycle      |
-| POST   | /cycles/:id/activate | Activate cycle    |
-| POST   | /cycles/:id/publish  | Publish results   |
-
-#### 6.2.3 Self-Feedback Endpoints
-
-| Method | Endpoint                | Description                      |
-| ------ | ----------------------- | -------------------------------- |
-| GET    | /self-feedback/:cycleId | Get current user's self-feedback |
-| POST   | /self-feedback/:cycleId | Save/submit self-feedback        |
-
-#### 6.2.4 Survey Endpoints
-
-| Method | Endpoint                   | Description                          |
-| ------ | -------------------------- | ------------------------------------ |
-| GET    | /surveys/pending           | Get pending surveys for current user |
-| GET    | /surveys/:id               | Get survey details                   |
-| POST   | /surveys/:id/responses     | Submit survey responses              |
-| GET    | /admin/surveys/assignments | Get all assignments (admin)          |
-| POST   | /admin/surveys/assign      | Assign reviewers                     |
-| DELETE | /admin/surveys/assign/:id  | Remove reviewer assignment           |
-
-#### 6.2.5 Results Endpoints
-
-| Method | Endpoint             | Description                   |
-| ------ | -------------------- | ----------------------------- |
-| GET    | /results/my          | Get current user's results    |
-| GET    | /results/team        | Get team results (TM/HOD)     |
-| GET    | /results/department  | Get department results (HOD)  |
-| GET    | /results/org         | Get org results (Admin)       |
-| GET    | /results/:employeeId | Get specific employee results |
-
-#### 6.2.6 Report Endpoints
-
-| Method | Endpoint                        | Description                     |
-| ------ | ------------------------------- | ------------------------------- |
-| GET    | /reports/individual/:employeeId | Generate individual PDF         |
-| GET    | /reports/department/:deptId     | Generate department summary PDF |
-| GET    | /reports/org                    | Generate org summary PDF        |
-| GET    | /reports/export/csv             | Export raw data to CSV          |
-
----
 ## 8. UI/UX Guidelines
 
 ### 8.1 Design Principles
