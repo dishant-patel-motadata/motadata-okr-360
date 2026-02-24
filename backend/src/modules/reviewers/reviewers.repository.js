@@ -170,7 +170,7 @@ export async function listPendingSurveysForReviewer(reviewerEmployeeId) {
     )
     .eq('reviewer_employee_id', reviewerEmployeeId)
     .in('status', ['PENDING', 'IN_PROGRESS'])
-    .eq('survey_assignments.review_cycles.status', 'ACTIVE')
+    .in('survey_assignments.review_cycles.status', ['ACTIVE', 'CLOSING'])
     .order('created_at', { ascending: true });
 
   if (error) throw error;

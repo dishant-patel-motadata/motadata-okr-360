@@ -35,7 +35,6 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Pending Surveys', path: '/surveys', icon: <ClipboardList className="h-5 w-5" />, group: 'My Workspace' },
   { label: 'Self-Feedback', path: '/self-feedback', icon: <UserCircle className="h-5 w-5" />, group: 'My Workspace' },
   { label: 'My Results', path: '/my-results', icon: <BarChart3 className="h-5 w-5" />, group: 'My Workspace' },
-  { label: 'Team Results', path: '/team/results', icon: <Users className="h-5 w-5" />, requiredRole: 'TM', group: 'Analysis' },
   { label: 'Department Results', path: '/department/results', icon: <Building2 className="h-5 w-5" />, requiredRole: 'HOD', group: 'Analysis' },
   { label: 'Organization Results', path: '/org/results', icon: <Globe className="h-5 w-5" />, requiredRole: 'CXO', group: 'Analysis' },
   { label: 'Cycle Management', path: '/admin/cycles', icon: <Target className="h-5 w-5" />, requiredRole: 'CXO', group: 'Administration' },

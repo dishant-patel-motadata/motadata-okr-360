@@ -30,7 +30,7 @@ export const listAssignmentsQuerySchema = z.object({
   employee_id: z.string().optional(),
   department:  z.string().optional(),
   page:        z.coerce.number().int().min(1).default(1),
-  limit:       z.coerce.number().int().min(1).max(200).default(50),
+  limit:       z.coerce.number().int().min(1).max(1000).default(50),
 });
 
 // ── Add a single reviewer to an assignment ────────────────────

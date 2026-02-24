@@ -45,10 +45,10 @@ import {
 async function getActiveQuestionsForSet(questionSet) {
   const { data, error } = await supabaseAdmin
     .from('questions')
-    .select('question_id, question_text, competency_id, competencies(competency_name)')
-    .eq('question_set', questionSet)
+    .select('question_id, question_text, category, order_number, competency_id, competencies(competency_name)')
+    .eq('set_type', questionSet)
     .eq('is_active', true)
-    .order('competency_id', { ascending: true });
+    .order('order_number', { ascending: true });
 
   if (error) throw error;
   return data ?? [];
@@ -106,12 +106,12 @@ async function _requireReviewer(reviewerId) {
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Check that the reviewer belongs to an ACTIVE cycle.
+ * Check that the reviewer belongs to an ACTIVE or CLOSING cycle.
  * Throws 403 if not.
  */
 function _requireActiveCycle(reviewer) {
   const cycleStatus = reviewer.survey_assignments?.review_cycles?.status;
-  if (cycleStatus !== 'ACTIVE') {
+  if (!['ACTIVE', 'CLOSING'].includes(cycleStatus)) {
     const err = new Error('This survey is not currently open.');
     err.statusCode = 403;
     throw err;
@@ -158,6 +158,8 @@ export async function getSurveyFormService(reviewerId) {
   const shapedQuestions = questions.map((q) => ({
     question_id: q.question_id,
     question_text: q.question_text,
+    category: q.category,
+    order_number: q.order_number,
     competency_id: q.competency_id,
     competency_name: q.competencies?.competency_name ?? null,
   }));

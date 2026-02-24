@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useOrgResults } from '@/hooks/useResults';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -7,14 +7,16 @@ import { ScoreBadge } from '@/components/shared/ScoreBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Loader2, Globe } from 'lucide-react';
+import { Loader2, Globe, Search } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getLabelForScore } from '@/lib/constants';
 
 export default function OrgResults() {
   const { cycleId: paramCycleId } = useParams<{ cycleId: string }>();
   const [cycleId, setCycleId] = useState(paramCycleId || '');
+  const [searchTerm, setSearchTerm] = useState('');
   const { data, isLoading } = useOrgResults(cycleId);
 
   // Backend returns { success, data: { cycle, summary, employees: [...], department_summary } }
@@ -22,6 +24,18 @@ export default function OrgResults() {
   const results = payload?.employees || [];
   const summary = payload?.summary;
   const deptSummary = payload?.department_summary || [];
+
+  // Filter employees by search term (name or employee_id)
+  const filteredResults = useMemo(() => {
+    if (!searchTerm.trim()) return results;
+    const term = searchTerm.toLowerCase();
+    return results.filter((r: any) => {
+      const name = (r.employees?.full_name ?? r.full_name ?? '').toLowerCase();
+      const id = (r.employee_id ?? '').toLowerCase();
+      const dept = (r.employees?.department ?? r.department ?? '').toLowerCase();
+      return name.includes(term) || id.includes(term) || dept.includes(term);
+    });
+  }, [results, searchTerm]);
 
   return (
     <div className="animate-fade-in">
@@ -84,7 +98,18 @@ export default function OrgResults() {
           )}
 
           <Card>
-            <CardHeader><CardTitle className="text-base">All Employees</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">All Employees</CardTitle>
+              <div className="relative w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, ID, or department..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
@@ -98,20 +123,28 @@ export default function OrgResults() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {results.map((r: any) => (
-                    <TableRow key={r.employee_id}>
-                      <TableCell className="font-medium">{r.employees?.full_name ?? r.full_name}</TableCell>
-                      <TableCell>{r.employees?.department ?? r.department}</TableCell>
-                      <TableCell>{r.employees?.group_name ?? r.group_name}</TableCell>
-                      <TableCell>{r.colleague_score?.toFixed(2)}</TableCell>
-                      <TableCell>
-                        <ScoreBadge score={r.colleague_score} label={r.final_label || getLabelForScore(r.colleague_score)} viewerRole="CXO" size="sm" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button asChild variant="ghost" size="sm"><Link to={`/employee/${r.employee_id}/results/${cycleId}`}>View</Link></Button>
+                  {filteredResults.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        {searchTerm ? 'No employees match your search' : 'No employees found'}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    filteredResults.map((r: any) => (
+                      <TableRow key={r.employee_id}>
+                        <TableCell className="font-medium">{r.employees?.full_name ?? r.full_name}</TableCell>
+                        <TableCell>{r.employees?.department ?? r.department}</TableCell>
+                        <TableCell>{r.employees?.group_name ?? r.group_name}</TableCell>
+                        <TableCell>{r.colleague_score?.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <ScoreBadge score={r.colleague_score} label={r.final_label || getLabelForScore(r.colleague_score)} viewerRole="CXO" size="sm" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="ghost" size="sm"><Link to={`/employee/${r.employee_id}/results/${cycleId}`}>View</Link></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
