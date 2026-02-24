@@ -36,13 +36,13 @@ export async function getPendingSurveysService(reviewerEmployeeId) {
       // Ratee info (SC-02)
       employee_id: ratee?.employee_id,
       employee_name: ratee?.full_name,
-      department: ratee?.department,
-      designation: ratee?.designation,
+      employee_department: ratee?.department,
+      employee_designation: ratee?.designation,
       // Cycle / deadline (SC-13)
       cycle_id: cycle?.cycle_id,
       cycle_name: cycle?.cycle_name,
-      deadline: cycle?.end_date,
-      cycle_status: cycle?.cycle_status,
+      end_date: cycle?.end_date,
+      cycle_status: cycle?.status,
       // Assignment context
       assignment_id: assignment?.assignment_id,
     };

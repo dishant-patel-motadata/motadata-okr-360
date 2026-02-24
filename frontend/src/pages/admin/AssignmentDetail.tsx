@@ -51,7 +51,7 @@ export default function AssignmentDetail() {
   const [newReviewerType, setNewReviewerType] = useState<ReviewerType>("PEER");
 
   const assignment = data?.data;
-  const reviewers = assignment?.reviewers || [];
+  const reviewers = assignment?.survey_reviewers || [];
 
   const handleRemove = async () => {
     if (!removeId) return;

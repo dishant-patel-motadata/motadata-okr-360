@@ -15,8 +15,13 @@ import {
 // ── Helper: send file response ────────────────────────────────
 
 function sendFile(res, { buffer, contentType, filename }) {
+  // Strip characters outside printable ASCII (0x20–0x7E) and escape quotes/backslashes
+  // to avoid ERR_INVALID_CHAR in the Content-Disposition header.
+  const safeFilename = filename
+    .replace(/[^\x20-\x7E]/g, '_')   // non-ASCII → _
+    .replace(/["/\\]/g, '_');          // quotes / slashes → _
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
   res.setHeader('Content-Length', buffer.length);
   return res.status(200).end(buffer);
 }
