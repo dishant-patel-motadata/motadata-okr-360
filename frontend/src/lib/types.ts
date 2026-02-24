@@ -3,7 +3,7 @@ export interface AuthUser {
   userId: string;
   employeeId: string;
   email: string;
-  name: string;
+  full_name: string;
   group_name: 'IC' | 'TM' | 'HOD' | 'CXO';
   department: string;
   designation: string;

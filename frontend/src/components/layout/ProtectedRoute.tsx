@@ -20,13 +20,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     );
   }
 
-  if (isError) {
-    console.error('Error in ProtectedRoute: Authentication error');
-    return <Navigate to="/login" replace />;
-  }
-
-  if (!user) {
-    console.warn('ProtectedRoute: No user found, redirecting to login');
+  if (isError || !user) {
     return <Navigate to="/login" replace />;
   }
 

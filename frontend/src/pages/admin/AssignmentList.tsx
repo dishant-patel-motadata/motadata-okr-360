@@ -21,6 +21,7 @@ export default function AssignmentList() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const assignments = data?.data || [];
+  console.log('Assignments:', assignments);
   const stats = statusData?.data;
 
   const handleDelete = async () => {
@@ -63,7 +64,7 @@ export default function AssignmentList() {
         <EmptyState icon={<ClipboardList className="h-12 w-12" />} title="Select a cycle" description="Choose a review cycle to manage assignments." />
       ) : isLoading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-      ) : assignments.length === 0 ? (
+      ) : assignments.rows.length === 0 ? (
         <EmptyState icon={<ClipboardList className="h-12 w-12" />} title="No assignments" description="No assignments found for this cycle." />
       ) : (
         <Card>
@@ -80,7 +81,7 @@ export default function AssignmentList() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {assignments.map((a) => (
+                {assignments.rows.map((a) => (
                   <TableRow key={a.assignment_id}>
                     <TableCell className="font-medium">{a.employee_name || a.employee_id}</TableCell>
                     <TableCell>{a.employee_department}</TableCell>
@@ -96,7 +97,7 @@ export default function AssignmentList() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                )) : "No assignments yet" }
               </TableBody>
             </Table>
           </CardContent>
