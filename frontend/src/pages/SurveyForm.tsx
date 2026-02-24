@@ -90,9 +90,9 @@ export default function SurveyForm() {
   return (
     <div className="animate-fade-in max-w-4xl mx-auto">
       <PageHeader
-        title={`Reviewing: ${form.employee.full_name}`}
-        description={`${form.employee.designation} · ${form.employee.department} · ${form.cycle.cycle_name}`}
-        breadcrumbs={[{ label: 'Surveys', path: '/surveys' }, { label: form.employee.full_name }]}
+        title={`Reviewing: ${form.ratee.full_name}`}
+        description={`${form.ratee.designation} · ${form.ratee.department} · ${form.cycle.cycle_name}`}
+        breadcrumbs={[{ label: 'Surveys', path: '/surveys' }, { label: form.ratee.full_name }]}
       />
 
       <Alert className="mb-6 border-primary/20 bg-primary/5">

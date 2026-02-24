@@ -143,7 +143,7 @@ export interface SurveyForm {
     status: string;
     question_set: 'IC' | 'TM' | 'HOD';
   };
-  employee: {
+  ratee: {
     full_name: string;
     designation: string;
     department: string;
