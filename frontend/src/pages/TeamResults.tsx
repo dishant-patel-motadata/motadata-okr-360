@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTeamResults } from '@/hooks/useResults';
-import { useCycles } from '@/hooks/useCycles';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { CycleSelector } from '@/components/shared/CycleSelector';
 import { ScoreBadge } from '@/components/shared/ScoreBadge';
@@ -20,7 +19,10 @@ export default function TeamResults() {
   const { data, isLoading } = useTeamResults(cycleId);
   const { user } = useAuth();
 
-  const results = data?.data || [];
+  // Backend returns { success, data: { cycle_id, team: [...], summary } }
+  const payload = data?.data;
+  const results = payload?.team || [];
+  const summary = payload?.summary;
 
   return (
     <div className="animate-fade-in">
@@ -28,7 +30,7 @@ export default function TeamResults() {
         title="Team Results"
         description="View your team members' feedback scores"
         breadcrumbs={[{ label: 'Analysis', path: '/dashboard' }, { label: 'Team Results' }]}
-        actions={<CycleSelector value={cycleId} onChange={setCycleId} />}
+        actions={<CycleSelector value={cycleId} onChange={setCycleId} status="COMPLETED,PUBLISHED" />}
       />
 
       {!cycleId ? (
@@ -38,40 +40,65 @@ export default function TeamResults() {
       ) : results.length === 0 ? (
         <EmptyState icon={<Users className="h-12 w-12" />} title="No results" description="No team results available for this cycle." />
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Designation</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Reviewers</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {results.map((r: any) => (
-                  <TableRow key={r.employee_id}>
-                    <TableCell className="font-medium">{r.employee_name || r.full_name}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.designation}</TableCell>
-                    <TableCell>{r.colleague_score?.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <ScoreBadge score={r.colleague_score} label={r.final_label || getLabelForScore(r.colleague_score)} viewerRole={user?.group_name || 'TM'} size="sm" />
-                    </TableCell>
-                    <TableCell>{r.total_reviewers}</TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild variant="ghost" size="sm">
-                        <Link to={`/employee/${r.employee_id}/results/${cycleId}`}>View Detail</Link>
-                      </Button>
-                    </TableCell>
+        <>
+          {summary && (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Team Members</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold">{summary.total_members}</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Scored</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold">{summary.scored}</p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Team Avg</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold">{summary.team_avg?.toFixed(2) ?? 'N/A'}</p></CardContent>
+              </Card>
+            </div>
+          )}
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee</TableHead>
+                    <TableHead>Designation</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Label</TableHead>
+                    <TableHead>Reviewers</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {results.map((r: any) => {
+                    const score = r.score;
+                    return (
+                      <TableRow key={r.employee_id}>
+                        <TableCell className="font-medium">{r.full_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{r.designation}</TableCell>
+                        <TableCell>{score?.colleague_score?.toFixed(2) ?? '—'}</TableCell>
+                        <TableCell>
+                          {score ? (
+                            <ScoreBadge score={score.colleague_score} label={score.final_label || getLabelForScore(score.colleague_score)} viewerRole={user?.group_name || 'TM'} size="sm" />
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Pending</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{score?.total_reviewers ?? '—'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="ghost" size="sm" disabled={!score}>
+                            <Link to={`/employee/${r.employee_id}/results/${cycleId}`}>View Detail</Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
