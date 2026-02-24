@@ -7,7 +7,7 @@ export function useAssignments(params: { cycle_id?: string; page?: number; limit
   Object.entries(params).forEach(([k, v]) => { if (v) sp.set(k, String(v)); });
   return useQuery({
     queryKey: ['assignments', params],
-    queryFn: () => apiFetch<ApiResponse<Assignment[]>>(`/api/v1/assignments?${sp}`),
+    queryFn: () => apiFetch<ApiResponse<{ rows: Assignment[]; total: number }>>(`/api/v1/assignments?${sp}`),
     enabled: !!params.cycle_id,
   });
 }

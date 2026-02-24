@@ -181,16 +181,16 @@ export type RatingLabel = 'Outstanding Impact' | 'Significant Impact' | 'Moderat
 // Assignments
 export interface Assignment {
   assignment_id: string;
-  employee_id: string;
-  cycle_id: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
-  employee_name?: string;
-  employee_department?: string;
-  employee_designation?: string;
-  employee_group_name?: Role;
-  reviewers_count?: number;
+  status: string;
   created_at: string;
   updated_at: string;
+  employees: {
+    full_name: string;
+    department: string;
+    group_name: string;
+    designation: string;
+    employee_id: string;
+  };
 }
 
 export interface AssignmentReviewer {
