@@ -63,7 +63,7 @@ app.use(
   cors({
     origin: (origin, cb) => {
       // Allow non-browser requests (curl, server-to-server) in dev
-      if (!origin || !allowedOrigins.includes(origin)) return cb(null, true);
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
       cb(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,          // required for better-auth cookie sessions
