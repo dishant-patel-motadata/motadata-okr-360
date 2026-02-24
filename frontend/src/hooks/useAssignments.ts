@@ -23,7 +23,7 @@ export function useAssignmentStatus(cycleId: string) {
 export function useAssignment(id: string) {
   return useQuery({
     queryKey: ['assignments', id],
-    queryFn: () => apiFetch<ApiResponse<Assignment & { reviewers: AssignmentReviewer[] }>>(`/api/v1/assignments/${id}`),
+    queryFn: () => apiFetch<ApiResponse<Assignment & { survey_reviewers: AssignmentReviewer[] }>>(`/api/v1/assignments/${id}`),
     enabled: !!id,
   });
 }

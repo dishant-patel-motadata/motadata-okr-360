@@ -54,6 +54,18 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
 
 export async function downloadFile(path: string, filename: string) {
   const res = await fetch(`${API_BASE}${path}`, { credentials: 'include' });
+
+  if (!res.ok) {
+    let message = `Download failed (${res.status})`;
+    try {
+      const json = await res.json();
+      message = json.message || json.error || message;
+    } catch {
+      // response body was not JSON — keep the generic message
+    }
+    throw new ApiError(message, res.status);
+  }
+
   const blob = await res.blob();
   const href = URL.createObjectURL(blob);
   const a = document.createElement('a');
