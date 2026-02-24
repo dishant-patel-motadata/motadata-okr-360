@@ -17,12 +17,12 @@ export default function TopBar() {
 
   if (!user) return null;
 
-  const initials = user.fullName
+  const initials = user.fullName ? user.fullName
     .split(' ')
     .map((n) => n[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase() : 'U';
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-card px-6">
