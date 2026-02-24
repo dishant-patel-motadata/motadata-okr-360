@@ -5,7 +5,16 @@ import type { ApiResponse, PendingReviewer, SurveyForm } from '@/lib/types';
 export function usePendingSurveys() {
   return useQuery({
     queryKey: ['reviewers', 'pending'],
-    queryFn: () => apiFetch<ApiResponse<PendingReviewer[]>>('/api/v1/reviewers/pending'),
+    queryFn: () => apiFetch<ApiResponse<any[]>>('/api/v1/reviewers/pending'),
+    select: (data) => ({
+      ...data,
+      data: data.data.map((s) => ({
+        ...s,
+        end_date: s.deadline ?? s.end_date,
+        employee_designation: s.designation ?? s.employee_designation,
+        employee_department: s.department ?? s.employee_department,
+      })),
+    }),
   });
 }
 
