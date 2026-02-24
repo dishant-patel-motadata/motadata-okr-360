@@ -29,7 +29,7 @@ export async function listAssignments({ cycle_id, status, employee_id, departmen
   let query = supabaseAdmin
     .from('survey_assignments')
     .select(
-      `assignment_id, status, created_at, updated_at,
+      `assignment_id, employee_id, status, created_at, updated_at,
        employees!inner(employee_id, full_name, department, designation, group_name)`,
       { count: 'exact' }
     )
@@ -57,7 +57,10 @@ export async function getAssignmentById(assignmentId) {
     .select(
       `*,
        employees!inner(employee_id, full_name, department, designation, group_name),
-       survey_reviewers(*)` 
+       survey_reviewers(
+         *,
+         employees!reviewer_employee_id(employee_id, full_name, department, designation)
+       )` 
     )
     .eq('assignment_id', assignmentId)
     .single();

@@ -27,9 +27,15 @@ export function useSurveyForm(reviewerId: string) {
 }
 
 export function useSaveSurveyDraft() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ reviewerId, data }: { reviewerId: string; data: { responses: Array<{ question_id: string; rating: number }>; comment: string } }) =>
       apiFetch(`/api/v1/surveys/form/${reviewerId}/save`, { method: 'POST', body: JSON.stringify(data) }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['survey', 'form', variables.reviewerId] });
+      qc.invalidateQueries({ queryKey: ['reviewers', 'pending'] });
+      qc.invalidateQueries({ queryKey: ['assignments'] });
+    },
   });
 }
 
@@ -38,7 +44,11 @@ export function useSubmitSurvey() {
   return useMutation({
     mutationFn: ({ reviewerId, data }: { reviewerId: string; data: { responses: Array<{ question_id: string; rating: number }>; comment: string } }) =>
       apiFetch(`/api/v1/surveys/form/${reviewerId}/submit`, { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reviewers', 'pending'] }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['reviewers', 'pending'] });
+      qc.invalidateQueries({ queryKey: ['survey', 'form', variables.reviewerId] });
+      qc.invalidateQueries({ queryKey: ['assignments'] });
+    },
   });
 }
 
