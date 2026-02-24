@@ -31,7 +31,7 @@ export default function Dashboard() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title={`Welcome, ${user.fullName}`}
+        title={`Welcome, ${user.full_name}`}
         description={`${user.designation} · ${user.department}`}
       />
 

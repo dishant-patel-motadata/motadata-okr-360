@@ -49,7 +49,6 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
       json.errors,
     );
   }
-  console.log('API Response:', json, res);
   return json;
 }
 
