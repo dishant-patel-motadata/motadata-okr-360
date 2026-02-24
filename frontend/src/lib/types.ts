@@ -1,13 +1,18 @@
 // Auth
 export interface AuthUser {
-  userId: string;
-  employeeId: string;
+  employee_id: string;
   email: string;
   full_name: string;
   group_name: 'IC' | 'TM' | 'HOD' | 'CXO';
   department: string;
   designation: string;
-  isActive: boolean;
+  reporting_manager_id: string | null;
+  date_of_joining: string;
+  cross_functional_groups: string[] | null;
+  applicable_competencies: string[] | null;
+  is_active: boolean;
+  synced_at: string | null;
+  created_at: string;
 }
 
 export type Role = 'IC' | 'TM' | 'HOD' | 'CXO';
@@ -170,10 +175,22 @@ export interface CalculatedScore {
   colleague_score: number;
   final_label: RatingLabel;
   competency_scores: Record<string, { score: number; label: string }>;
-  reviewer_category_scores: Record<string, number>;
+  reviewer_category_scores: Record<string, { score: number; label: string; reviewer_count: number } | number>;
   total_reviewers: number;
   calculated_at: string;
   cycle_name?: string;
+  review_cycles?: {
+    cycle_name: string;
+    start_date?: string;
+    end_date?: string;
+    status?: string;
+  };
+  employees?: {
+    full_name: string;
+    department: string;
+    designation: string;
+    group_name: string;
+  };
 }
 
 export type RatingLabel = 'Outstanding Impact' | 'Significant Impact' | 'Moderate Impact' | 'Not Enough Impact';

@@ -13,6 +13,19 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { toast } from 'sonner';
+import { getLabelForScore } from '@/lib/constants';
+
+function getCompetencyScore(val: any): number {
+  if (typeof val === 'number') return val;
+  if (val && typeof val === 'object' && typeof val.score === 'number') return val.score;
+  return 0;
+}
+
+function getCategoryScore(val: any): number {
+  if (typeof val === 'number') return val;
+  if (val && typeof val === 'object' && typeof val.score === 'number') return val.score;
+  return 0;
+}
 
 export default function EmployeeScorecard() {
   const { employeeId, cycleId } = useParams<{ employeeId: string; cycleId: string }>();
@@ -29,12 +42,17 @@ export default function EmployeeScorecard() {
 
   if (!score || !user) return null;
 
-  const radarData = Object.entries(score.competency_scores).map(([name, val]) => ({
-    competency: name, score: val.score,
+  const employeeName = score.employees?.full_name || 'Employee';
+  const cycleName = score.review_cycles?.cycle_name || '';
+
+  const radarData = Object.entries(score.competency_scores || {}).map(([name, val]: [string, any]) => ({
+    competency: name,
+    score: getCompetencyScore(val),
   }));
 
-  const categoryData = Object.entries(score.reviewer_category_scores).map(([type, s]) => ({
-    type: type.replace(/_/g, ' '), score: s,
+  const categoryData = Object.entries(score.reviewer_category_scores || {}).map(([type, val]: [string, any]) => ({
+    type: type.replace(/_/g, ' '),
+    score: getCategoryScore(val),
   }));
 
   const handleDownload = async () => {
@@ -46,8 +64,9 @@ export default function EmployeeScorecard() {
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Employee Scorecard"
-        breadcrumbs={[{ label: 'Results' }, { label: 'Scorecard' }]}
+        title={`Scorecard: ${employeeName}`}
+        description={cycleName ? `Cycle: ${cycleName}` : undefined}
+        breadcrumbs={[{ label: 'Results' }, { label: employeeName }]}
         actions={
           user.group_name === 'CXO' ? (
             <Button variant="outline" onClick={handleDownload}><Download className="mr-2 h-4 w-4" />Download PDF</Button>
@@ -62,7 +81,7 @@ export default function EmployeeScorecard() {
             <ScoreBadge score={score.colleague_score} label={score.final_label} viewerRole={user.group_name} size="lg" />
             <div className="text-sm text-muted-foreground">
               <p>Based on {score.total_reviewers} reviewers</p>
-              {score.self_score && <p>Self-score: {score.self_score.toFixed(2)}</p>}
+              {score.self_score != null && <p>Self-score: {score.self_score.toFixed(2)}</p>}
             </div>
           </CardContent>
         </Card>
@@ -107,16 +126,20 @@ export default function EmployeeScorecard() {
           <CardHeader><CardTitle className="text-sm font-medium">Competency Breakdown</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {Object.entries(score.competency_scores).map(([name, val]) => (
-                <div key={name} className="flex items-center gap-4">
-                  <span className="w-40 truncate text-sm font-medium">{name}</span>
-                  <div className="flex-1 h-2 rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: `${(val.score / 4) * 100}%` }} />
+              {Object.entries(score.competency_scores || {}).map(([name, val]: [string, any]) => {
+                const numScore = getCompetencyScore(val);
+                const label = val?.label || getLabelForScore(numScore);
+                return (
+                  <div key={name} className="flex items-center gap-4">
+                    <span className="w-40 truncate text-sm font-medium">{name}</span>
+                    <div className="flex-1 h-2 rounded-full bg-muted">
+                      <div className="h-2 rounded-full bg-primary" style={{ width: `${(numScore / 4) * 100}%` }} />
+                    </div>
+                    <span className="text-sm text-muted-foreground w-10 text-right">{numScore.toFixed(1)}</span>
+                    <ScoreBadge label={label as any} viewerRole={user.group_name} size="sm" />
                   </div>
-                  <span className="text-sm text-muted-foreground w-10 text-right">{val.score.toFixed(1)}</span>
-                  <ScoreBadge label={val.label as any} viewerRole={user.group_name} size="sm" />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
