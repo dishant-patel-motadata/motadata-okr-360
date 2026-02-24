@@ -61,9 +61,13 @@ app.use(helmet());
 const allowedOrigins = env.CORS_ORIGINS.split(',').map((o) => o.trim());
 app.use(
   cors({
-    origin: 'http://localhost:8080',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    origin: (origin, cb) => {
+      // Allow non-browser requests (curl, server-to-server) in dev
+      if (!origin || !allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS: origin ${origin} not allowed`));
+    },
+    credentials: true,          // required for better-auth cookie sessions
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
@@ -117,32 +121,6 @@ app.get('/health', (req, res) => {
     message: 'OKR-360 API is healthy',
     timestamp: new Date().toISOString(),
     environment: env.NODE_ENV,
-  });
-});
-
-// ── Root route — API index ─────────────────────────────────
-app.get('/', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'OKR-360 API',
-    version: 'v1',
-    health: '/health',
-    routes: {
-      auth: '/api/auth/*  (sign-in, sign-out, session)',
-      me: '/api/v1/auth/me',
-      employees: '/api/v1/employees',
-      cycles: '/api/v1/cycles',
-      competencies: '/api/v1/competencies',
-      questions: '/api/v1/questions',
-      selfFeedback: '/api/v1/self-feedback',
-      assignments: '/api/v1/assignments',
-      reviewers: '/api/v1/reviewers',
-      surveys: '/api/v1/surveys',
-      scores: '/api/v1/scores',
-      results: '/api/v1/results',
-      reports: '/api/v1/reports',
-      admin: '/api/v1/admin',
-    },
   });
 });
 

@@ -42,7 +42,7 @@ const envSchema = z.object({
   TEAMS_WEBHOOK_URL: z.string().url({ message: 'TEAMS_WEBHOOK_URL must be a valid URL' }).optional(),
 
   // CORS
-  CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  CORS_ORIGINS: z.string().default('http://localhost:8080'),
 
   // Rate limiting
   RATE_LIMIT_WINDOW_MS: z.string().default('900000'),

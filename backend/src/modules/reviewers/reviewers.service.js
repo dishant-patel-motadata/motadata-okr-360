@@ -24,27 +24,27 @@ export async function getPendingSurveysService(reviewerEmployeeId) {
   // Shape the response for the survey list view (SC-02)
   return rows.map((r) => {
     const assignment = r.survey_assignments;
-    const cycle      = assignment?.review_cycles;
-    const ratee      = assignment?.employees;
+    const cycle = assignment?.review_cycles;
+    const ratee = assignment?.employees;
 
     return {
-      reviewer_id:    r.reviewer_id,
-      access_token:   r.access_token,
-      reviewer_type:  r.reviewer_type,
-      question_set:   r.question_set,
-      status:         r.status,
+      reviewer_id: r.reviewer_id,
+      access_token: r.access_token,
+      reviewer_type: r.reviewer_type,
+      question_set: r.question_set,
+      status: r.status,
       // Ratee info (SC-02)
-      employee_id:    ratee?.employee_id,
-      employee_name:  ratee?.full_name,
-      department:     ratee?.department,
-      designation:    ratee?.designation,
+      employee_id: ratee?.employee_id,
+      employee_name: ratee?.full_name,
+      department: ratee?.department,
+      designation: ratee?.designation,
       // Cycle / deadline (SC-13)
-      cycle_id:       cycle?.cycle_id,
-      cycle_name:     cycle?.cycle_name,
-      deadline:       cycle?.end_date,
-      cycle_status:   cycle?.cycle_status,
+      cycle_id: cycle?.cycle_id,
+      cycle_name: cycle?.cycle_name,
+      deadline: cycle?.end_date,
+      cycle_status: cycle?.cycle_status,
       // Assignment context
-      assignment_id:  assignment?.assignment_id,
+      assignment_id: assignment?.assignment_id,
     };
   });
 }
@@ -73,6 +73,7 @@ export async function getReviewerService(reviewerId, requestingUser) {
   }
 
   return reviewer;
+
 }
 
 // ─────────────────────────────────────────────────────────────
