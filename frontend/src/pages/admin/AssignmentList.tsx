@@ -1,34 +1,51 @@
-import { useState } from 'react';
-import { useAssignments, useAssignmentStatus, useDeleteAssignment } from '@/hooks/useAssignments';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { CycleSelector } from '@/components/shared/CycleSelector';
-import { StatusBadge } from '@/components/shared/StatusBadge';
-import { EmptyState } from '@/components/shared/EmptyState';
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Link } from 'react-router-dom';
-import { Loader2, ClipboardList, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState } from "react";
+import {
+  useAssignments,
+  useAssignmentStatus,
+  useDeleteAssignment,
+} from "@/hooks/useAssignments";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { CycleSelector } from "@/components/shared/CycleSelector";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Link } from "react-router-dom";
+import { Loader2, ClipboardList, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AssignmentList() {
-  const [cycleId, setCycleId] = useState('');
+  const [cycleId, setCycleId] = useState("");
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useAssignments({ cycle_id: cycleId, page, limit: 50 });
+  const { data, isLoading } = useAssignments({
+    cycle_id: cycleId,
+    page,
+    limit: 50,
+  });
   const { data: statusData } = useAssignmentStatus(cycleId);
   const deleteAssignment = useDeleteAssignment();
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const assignments = data?.data || [];
+  const assignments = data?.data?.rows || [];
   const stats = statusData?.data;
 
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
       await deleteAssignment.mutateAsync(deleteId);
-      toast.success('Assignment deleted');
-    } catch (err: any) { toast.error(err.message); }
+      toast.success("Assignment deleted");
+    } catch (err: any) {
+      toast.error(err.message);
+    }
     setDeleteId(null);
   };
 
@@ -37,17 +54,17 @@ export default function AssignmentList() {
       <PageHeader
         title="Survey Assignments"
         description="Manage employee survey assignments"
-        breadcrumbs={[{ label: 'Admin' }, { label: 'Assignments' }]}
+        breadcrumbs={[{ label: "Admin" }, { label: "Assignments" }]}
         actions={<CycleSelector value={cycleId} onChange={setCycleId} />}
       />
 
       {stats && (
         <div className="grid gap-4 md:grid-cols-4 mb-6">
           {[
-            { label: 'Total', value: stats.total },
-            { label: 'Pending', value: stats.pending },
-            { label: 'In Progress', value: stats.in_progress },
-            { label: 'Completed', value: stats.completed },
+            { label: "Total", value: stats.total },
+            { label: "Pending", value: stats.pending },
+            { label: "In Progress", value: stats.in_progress },
+            { label: "Completed", value: stats.completed },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className="py-4">
@@ -60,11 +77,21 @@ export default function AssignmentList() {
       )}
 
       {!cycleId ? (
-        <EmptyState icon={<ClipboardList className="h-12 w-12" />} title="Select a cycle" description="Choose a review cycle to manage assignments." />
+        <EmptyState
+          icon={<ClipboardList className="h-12 w-12" />}
+          title="Select a cycle"
+          description="Choose a review cycle to manage assignments."
+        />
       ) : isLoading ? (
-        <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       ) : assignments.length === 0 ? (
-        <EmptyState icon={<ClipboardList className="h-12 w-12" />} title="No assignments" description="No assignments found for this cycle." />
+        <EmptyState
+          icon={<ClipboardList className="h-12 w-12" />}
+          title="No assignments"
+          description="No assignments found for this cycle."
+        />
       ) : (
         <Card>
           <CardContent className="p-0">
@@ -82,15 +109,27 @@ export default function AssignmentList() {
               <TableBody>
                 {assignments.map((a) => (
                   <TableRow key={a.assignment_id}>
-                    <TableCell className="font-medium">{a.employee_name || a.employee_id}</TableCell>
-                    <TableCell>{a.employee_department}</TableCell>
-                    <TableCell>{a.employee_group_name}</TableCell>
-                    <TableCell>{a.reviewers_count || 0}</TableCell>
-                    <TableCell><StatusBadge status={a.status} /></TableCell>
+                    <TableCell className="font-medium">
+                      {a.employees?.full_name}
+                    </TableCell>
+                    <TableCell>{a.employees?.department}</TableCell>
+                    <TableCell>{a.employees?.group_name}</TableCell>
+                    {/* <TableCell>{a.reviewers_count || 0}</TableCell> */}
+                    <TableCell>
+                      <StatusBadge status={a.status} />
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button asChild variant="ghost" size="sm"><Link to={`/admin/assignments/${a.assignment_id}`}>View</Link></Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteId(a.assignment_id)}>
+                        <Button asChild variant="ghost" size="sm">
+                          <Link to={`/admin/assignments/${a.assignment_id}`}>
+                            View
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeleteId(a.assignment_id)}
+                        >
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </div>
@@ -103,7 +142,15 @@ export default function AssignmentList() {
         </Card>
       )}
 
-      <ConfirmDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)} title="Delete Assignment" description="This will remove the assignment and all associated reviewers." confirmLabel="Delete" variant="destructive" onConfirm={handleDelete} />
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={() => setDeleteId(null)}
+        title="Delete Assignment"
+        description="This will remove the assignment and all associated reviewers."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
