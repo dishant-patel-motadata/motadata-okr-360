@@ -46,7 +46,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const signIn = async (email: string, password: string) => {
-    await signInMutation.mutateAsync({ email, password });
+    try {
+      await signInMutation.mutateAsync({ email, password });
+      console.log('Sign-in successful, invalidating auth query');
+    } catch (error) {
+      console.error('Sign-in error:', error);
+      throw error;
+    }
   };
 
   const signOut = async () => {

@@ -17,12 +17,12 @@ export default function TopBar() {
 
   if (!user) return null;
 
-  const initials = user.fullName
+  const initials = user.name ? user.name
     .split(' ')
     .map((n) => n[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase() : 'U';
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-card px-6">
@@ -43,7 +43,7 @@ export default function TopBar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="flex flex-col gap-1 p-2">
-              <p className="text-sm font-medium">{user.fullName}</p>
+              <p className="text-sm font-medium">{user.name}</p>
               <p className="text-xs text-muted-foreground">{user.email}</p>
               <p className="text-xs text-muted-foreground">{user.department}</p>
             </div>
