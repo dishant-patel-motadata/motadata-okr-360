@@ -97,7 +97,7 @@ export default function AssignmentList() {
                       </div>
                     </TableCell>
                   </TableRow>
-                )) : "No assignments yet" }
+                ))}
               </TableBody>
             </Table>
           </CardContent>
