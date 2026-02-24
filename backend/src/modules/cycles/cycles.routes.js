@@ -32,17 +32,17 @@ import {
 
 const router = Router();
 
-// All cycle routes require authentication + CXO role
-router.use(authenticateSession, authorizeRoles('CXO'));
+// Read endpoints: any authenticated user can list / view cycles
+router.get('/',    authenticateSession, validate(listCyclesQuerySchema, 'query'), listCycles);
+router.get('/:id', authenticateSession, getCycle);
 
-router.get('/',    validate(listCyclesQuerySchema, 'query'), listCycles);
-router.post('/',   validate(createCycleSchema), createCycle);
-router.get('/:id',    getCycle);
-router.patch('/:id',  validate(updateCycleSchema), updateCycle);
-router.delete('/:id', deleteCycle);
+// Write endpoints: CXO only
+router.post('/',   authenticateSession, authorizeRoles('CXO'), validate(createCycleSchema), createCycle);
+router.patch('/:id',  authenticateSession, authorizeRoles('CXO'), validate(updateCycleSchema), updateCycle);
+router.delete('/:id', authenticateSession, authorizeRoles('CXO'), deleteCycle);
 
-// State transitions
-router.post('/:id/activate', activateCycle);
-router.post('/:id/publish',  publishCycle);
+// State transitions: CXO only
+router.post('/:id/activate', authenticateSession, authorizeRoles('CXO'), activateCycle);
+router.post('/:id/publish',  authenticateSession, authorizeRoles('CXO'), publishCycle);
 
 export default router;

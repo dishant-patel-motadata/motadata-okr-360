@@ -70,10 +70,16 @@ export const updateCycleSchema = z
   );
 
 // ── GET /cycles?... ────────────────────────────────────────
+const validStatuses = ['DRAFT', 'ACTIVE', 'CLOSING', 'COMPLETED', 'PUBLISHED'];
+
 export const listCyclesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(10),
   status: z
-    .enum(['DRAFT', 'ACTIVE', 'CLOSING', 'COMPLETED', 'PUBLISHED'])
+    .string()
+    .refine(
+      (val) => val.split(',').every((s) => validStatuses.includes(s.trim())),
+      { message: `status must be one or more of: ${validStatuses.join(', ')} (comma-separated)` }
+    )
     .optional(),
 });
