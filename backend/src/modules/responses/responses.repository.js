@@ -31,7 +31,7 @@ export async function getReviewerWithContext(reviewerId) {
   const { data, error } = await supabaseAdmin
     .from('survey_reviewers')
     .select(
-      `reviewer_id, reviewer_type, question_set, status, access_token, completed_at,
+      `reviewer_id, reviewer_employee_id, reviewer_type, question_set, status, access_token, completed_at,
        assignment_id,
        survey_assignments(
          assignment_id,
@@ -60,7 +60,7 @@ export async function getReviewerWithContextByToken(token) {
   const { data, error } = await supabaseAdmin
     .from('survey_reviewers')
     .select(
-      `reviewer_id, reviewer_type, question_set, status, access_token, completed_at,
+      `reviewer_id, reviewer_employee_id, reviewer_type, question_set, status, access_token, completed_at,
        assignment_id,
        survey_assignments(
          assignment_id,

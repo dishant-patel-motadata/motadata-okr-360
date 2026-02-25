@@ -116,6 +116,17 @@ export async function getAssignmentService(assignmentId) {
     err.status = 404;
     throw err;
   }
+
+  // Flatten reviewer employee data so frontend gets reviewer_name / reviewer_department
+  if (assignment.survey_reviewers) {
+    assignment.survey_reviewers = assignment.survey_reviewers.map((r) => ({
+      ...r,
+      reviewer_name: r.employees?.full_name ?? null,
+      reviewer_department: r.employees?.department ?? null,
+      reviewer_designation: r.employees?.designation ?? null,
+    }));
+  }
+
   return assignment;
 }
 

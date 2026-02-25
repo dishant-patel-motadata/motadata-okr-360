@@ -77,10 +77,14 @@ async function _syncAssignmentStatus(assignmentId) {
       return; // No change needed
     }
 
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from('survey_assignments')
-      .update({ status: newStatus })
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
       .eq('assignment_id', assignmentId);
+
+    if (error) {
+      console.error('[responses.service] _syncAssignmentStatus DB error:', error.message);
+    }
   } catch (err) {
     // Non-fatal — log but don't surface to caller
     console.error('[responses.service] _syncAssignmentStatus error:', err.message);
