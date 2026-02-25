@@ -27,6 +27,8 @@ DROP TABLE IF EXISTS survey_responses      CASCADE;
 DROP TABLE IF EXISTS survey_reviewers      CASCADE;
 DROP TABLE IF EXISTS survey_assignments    CASCADE;
 DROP TABLE IF EXISTS self_feedback         CASCADE;
+DROP TABLE IF EXISTS template_questions    CASCADE;
+DROP TABLE IF EXISTS question_templates    CASCADE;
 DROP TABLE IF EXISTS questions             CASCADE;
 DROP TABLE IF EXISTS competencies          CASCADE;
 DROP TABLE IF EXISTS reviewer_config       CASCADE;
@@ -76,6 +78,8 @@ CREATE TABLE employees (
     group_name               TEXT NOT NULL CHECK (group_name IN ('IC','TM','HOD','CXO')),
     cross_functional_groups  JSONB,          -- e.g. ["Engineering","Product"]
     applicable_competencies  JSONB,          -- e.g. ["COMM","TEAM"]
+    leadership_level         INTEGER,        -- 1=CXO, 2=HOD, 3=TM, 4=IC (for org hierarchy)
+    org_path                 TEXT[],         -- Materialized path from root to this node
     is_active                BOOLEAN NOT NULL DEFAULT TRUE,
     synced_at                TIMESTAMPTZ,
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -122,6 +126,7 @@ CREATE TABLE review_cycles (
     enable_self_feedback      BOOLEAN NOT NULL DEFAULT TRUE,
     enable_colleague_feedback BOOLEAN NOT NULL DEFAULT TRUE,
     reminder_schedule         JSONB DEFAULT '[7,3,1]',
+    template_id               UUID,           -- FK to question_templates (set on cycle creation)
     created_by                TEXT REFERENCES employees(employee_id),
     created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -233,7 +238,69 @@ CREATE TABLE reviewer_config (
 );
 
 -- ----------------------------------------------------------
--- 3.6 self_feedback
+-- 3.6 question_templates
+-- PURPOSE : Stores reusable question set templates that can be
+--           assigned to review cycles.  Allows HR to create
+--           custom question sets and reuse them across multiple
+--           cycles without affecting the master question bank.
+-- WHY IT EXISTS :
+--   • Decouples question sets from cycles, enabling template
+--     reuse and version control.  When a cycle is created
+--     with a template, it locks in that question set — future
+--     changes to the template won't affect active cycles.
+--   • Allows different cycles to use different question
+--     subsets (e.g., simplified set for H1, full set for H2).
+-- KEY FIELDS :
+--   template_id   – UUID PK referenced by review_cycles.
+--   template_name – Human-friendly name (e.g., "Standard IC/TM/HOD Set",
+--                   "Simplified Q1 2026", "Leadership Focus").
+--   description   – Optional notes on when/why to use this template.
+--   created_by    – FK to employees (admin who created it).
+--   is_active     – Soft-delete flag; inactive templates can't be
+--                   assigned to new cycles but existing cycles
+--                   using them remain unaffected.
+-- ----------------------------------------------------------
+CREATE TABLE question_templates (
+    template_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_name TEXT NOT NULL UNIQUE,
+    description   TEXT,
+    created_by    TEXT REFERENCES employees(employee_id),
+    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------
+-- 3.7 template_questions
+-- PURPOSE : Junction table linking question templates to the
+--           specific questions they include.  This M:N mapping
+--           lets one template include multiple questions, and
+--           one question can belong to multiple templates.
+-- WHY IT EXISTS :
+--   • Provides full flexibility: HR can create a template with
+--     only 10 IC questions, or all 15, or a mix across sets.
+--   • When a cycle references a template_id, the application
+--     pulls questions via this junction to build the survey.
+--   • The is_active flag allows temporarily excluding a
+--     question from a template without deleting the link.
+-- KEY FIELDS :
+--   template_id – FK to question_templates.
+--   question_id – FK to questions (the master question bank).
+--   is_active   – Soft-delete for this template-question link.
+--   UNIQUE(template_id, question_id) – Prevents duplicate
+--               question inclusion in one template.
+-- ----------------------------------------------------------
+CREATE TABLE template_questions (
+    template_question_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_id          UUID NOT NULL REFERENCES question_templates(template_id) ON DELETE CASCADE,
+    question_id          TEXT NOT NULL REFERENCES questions(question_id),
+    is_active            BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (template_id, question_id)
+);
+
+-- ----------------------------------------------------------
+-- 3.8 self_feedback
 -- PURPOSE : Captures each employee's own competency ratings
 --           for a given review cycle, allowing a "self vs.
 --           peer" score gap analysis in the final report.
@@ -270,7 +337,7 @@ CREATE TABLE self_feedback (
 );
 
 -- ----------------------------------------------------------
--- 3.7 survey_assignments
+-- 3.9 survey_assignments
 -- PURPOSE : The top-level record that enrols one employee in
 --           one review cycle, acting as the parent container
 --           for all reviewers and responses for that person
@@ -306,7 +373,7 @@ CREATE TABLE survey_assignments (
 );
 
 -- ----------------------------------------------------------
--- 3.8 survey_reviewers
+-- 3.10 survey_reviewers
 -- PURPOSE : Each row represents one reviewer who has been
 --           asked to provide 360 feedback for a specific
 --           employee (assignment).  This table is the bridge
@@ -353,7 +420,7 @@ CREATE TABLE survey_reviewers (
 );
 
 -- ----------------------------------------------------------
--- 3.9 survey_responses
+-- 3.11 survey_responses
 -- PURPOSE : The atomic unit of feedback — one numeric rating
 --           (1–4 scale) given by one reviewer for one question.
 --           This is the raw data that every score calculation
@@ -387,7 +454,7 @@ CREATE TABLE survey_responses (
 );
 
 -- ----------------------------------------------------------
--- 3.10 survey_comments
+-- 3.12 survey_comments
 -- PURPOSE : Stores the open-ended qualitative text that
 --           reviewers optionally write alongside their
 --           numeric ratings, providing context and specific
@@ -417,7 +484,7 @@ CREATE TABLE survey_comments (
 );
 
 -- ----------------------------------------------------------
--- 3.11 calculated_scores
+-- 3.13 calculated_scores
 -- PURPOSE : A materialised summary of every employee's final
 --           360 scores for one cycle, computed by the score
 --           engine after the cycle closes.  This is the primary
@@ -451,23 +518,24 @@ CREATE TABLE survey_comments (
 --                           recalculate with an upsert.
 -- ----------------------------------------------------------
 CREATE TABLE calculated_scores (
-    calc_id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    employee_id              TEXT NOT NULL REFERENCES employees(employee_id),
-    cycle_id                 UUID NOT NULL REFERENCES review_cycles(cycle_id),
-    self_score               NUMERIC(4,2),
-    colleague_score          NUMERIC(4,2),
-    final_label              TEXT CHECK (final_label IN
-                                 ('Outstanding Impact','Significant Impact',
-                                  'Moderate Impact','Not Enough Impact')),
-    competency_scores        JSONB DEFAULT '{}',
-    reviewer_category_scores JSONB DEFAULT '{}',
-    total_reviewers          INTEGER DEFAULT 0,
-    calculated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    calc_id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    employee_id                   TEXT NOT NULL REFERENCES employees(employee_id),
+    cycle_id                      UUID NOT NULL REFERENCES review_cycles(cycle_id),
+    self_score                    NUMERIC(4,2),
+    colleague_score               NUMERIC(4,2),
+    final_label                   TEXT CHECK (final_label IN
+                                      ('Outstanding Impact','Significant Impact',
+                                       'Moderate Impact','Not Enough Impact')),
+    competency_scores             JSONB DEFAULT '{}',      -- {"COMM": 3.5, "TEAM": 4.0, ...}
+    reviewer_category_scores      JSONB DEFAULT '{}',      -- {"MANAGER": 3.8, "PEER": 3.5, ...}
+    reviewer_competency_breakdown JSONB DEFAULT '{}',      -- {"MANAGER": {"COMM": 3.5, "TEAM": 4.0}, "PEER": {...}}
+    total_reviewers               INTEGER DEFAULT 0,
+    calculated_at                 TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (employee_id, cycle_id)
 );
 
 -- ----------------------------------------------------------
--- 3.12 notification_templates
+-- 3.14 notification_templates
 -- PURPOSE : A library of reusable, admin-editable message
 --           templates for every automated notification event
 --           in the platform (cycle start, survey assigned,
@@ -507,7 +575,7 @@ CREATE TABLE notification_templates (
 );
 
 -- ----------------------------------------------------------
--- 3.13 notification_log
+-- 3.15 notification_log
 -- PURPOSE : An append-only record of every notification the
 --           platform has attempted to send, including its
 --           delivery status and any failure detail.  Functions
@@ -550,7 +618,7 @@ CREATE TABLE notification_log (
 );
 
 -- ----------------------------------------------------------
--- 3.14 audit_log
+-- 3.16 audit_log
 -- PURPOSE : An immutable, append-only audit trail of every
 --           significant administrative action performed in the
 --           platform — who did what, to which record, and
@@ -592,7 +660,7 @@ CREATE TABLE audit_log (
 );
 
 -- ----------------------------------------------------------
--- 3.15 ad_sync_log
+-- 3.17 ad_sync_log
 -- PURPOSE : Records the outcome of every Active Directory
 --           synchronisation run — whether it was scheduled
 --           (nightly CRON) or manually triggered by an admin
@@ -636,7 +704,14 @@ CREATE TABLE ad_sync_log (
 
 
 -- ============================================================
--- PART 4 — updated_at TRIGGER FUNCTION
+-- PART 4 — FOREIGN KEY CONSTRAINTS (deferred for dependency resolution)
+-- ============================================================
+ALTER TABLE review_cycles ADD CONSTRAINT fk_review_cycles_template
+    FOREIGN KEY (template_id) REFERENCES question_templates(template_id);
+
+
+-- ============================================================
+-- PART 5 — updated_at TRIGGER FUNCTION
 -- ============================================================
 CREATE OR REPLACE FUNCTION fn_set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -653,8 +728,8 @@ DECLARE
 BEGIN
     FOREACH tbl IN ARRAY ARRAY[
         'employees','review_cycles','competencies','questions',
-        'self_feedback','survey_assignments','calculated_scores',
-        'notification_templates'
+        'question_templates','self_feedback','survey_assignments',
+        'calculated_scores','notification_templates'
     ]
     LOOP
         EXECUTE format(
@@ -669,26 +744,63 @@ $$;
 
 
 -- ============================================================
--- PART 5 — INDEXES
+-- PART 6 — INDEXES
 -- ============================================================
+-- Employees
 CREATE INDEX idx_employees_dept          ON employees(department);
 CREATE INDEX idx_employees_group         ON employees(group_name);
 CREATE INDEX idx_employees_manager       ON employees(reporting_manager_id);
 CREATE INDEX idx_employees_active        ON employees(is_active);
+CREATE INDEX idx_employees_leadership    ON employees(leadership_level);
+
+-- Review Cycles
 CREATE INDEX idx_cycles_status           ON review_cycles(status);
+CREATE INDEX idx_cycles_template         ON review_cycles(template_id);
+
+-- Questions and Templates
 CREATE INDEX idx_questions_set           ON questions(set_type);
 CREATE INDEX idx_questions_competency    ON questions(competency_id);
+CREATE INDEX idx_templates_active        ON question_templates(is_active);
+CREATE INDEX idx_template_questions_tid  ON template_questions(template_id);
+CREATE INDEX idx_template_questions_qid  ON template_questions(question_id);
+
+-- Self Feedback
 CREATE INDEX idx_sf_employee_cycle       ON self_feedback(employee_id, cycle_id);
 CREATE INDEX idx_sf_status               ON self_feedback(status);
+
+-- Survey Assignments
 CREATE INDEX idx_sa_employee_cycle       ON survey_assignments(employee_id, cycle_id);
 CREATE INDEX idx_sa_status               ON survey_assignments(status);
+
+-- Survey Reviewers (includes reverse lookup optimization)
 CREATE INDEX idx_sr_assignment           ON survey_reviewers(assignment_id);
 CREATE INDEX idx_sr_reviewer_emp         ON survey_reviewers(reviewer_employee_id);
+CREATE INDEX idx_sr_reviewer_type        ON survey_reviewers(reviewer_type);
 CREATE INDEX idx_sr_status               ON survey_reviewers(status);
+CREATE INDEX idx_sr_completed            ON survey_reviewers(completed_at) WHERE completed_at IS NOT NULL;
+
+-- Survey Responses
 CREATE INDEX idx_resp_reviewer           ON survey_responses(reviewer_id);
 CREATE INDEX idx_resp_question           ON survey_responses(question_id);
+
+-- Calculated Scores
 CREATE INDEX idx_scores_employee_cycle   ON calculated_scores(employee_id, cycle_id);
+
+-- Notifications
 CREATE INDEX idx_notif_log_recipient     ON notification_log(recipient_id);
 CREATE INDEX idx_notif_log_status        ON notification_log(status);
+
+-- Audit
 CREATE INDEX idx_audit_user              ON audit_log(user_id);
 CREATE INDEX idx_audit_entity            ON audit_log(entity_type, entity_id);
+
+
+-- ============================================================
+-- PART 7 — COMMENTS AND DOCUMENTATION
+-- ============================================================
+COMMENT ON TABLE question_templates IS 'Reusable question set templates that can be assigned to review cycles';
+COMMENT ON TABLE template_questions IS 'Junction table mapping questions to templates';
+COMMENT ON COLUMN employees.leadership_level IS '1=CXO, 2=HOD, 3=TM, 4=IC - for org hierarchy queries';
+COMMENT ON COLUMN employees.org_path IS 'Materialized path from organization root to this employee';
+COMMENT ON COLUMN review_cycles.template_id IS 'Question template used for this cycle (locked on creation)';
+COMMENT ON COLUMN calculated_scores.reviewer_competency_breakdown IS 'Detailed scores: reviewer_type -> competency -> avg_score for granular analysis';

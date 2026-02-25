@@ -4,10 +4,150 @@
 -- Version : 1.0   |   Date: February 2026
 -- ============================================================
 -- Run AFTER 02-database-setup.sql.
--- Employees table is already populated; this script seeds all
--- other tables.  All INSERTs use ON CONFLICT DO NOTHING so it
--- is safe to re-run.
+-- This script seeds sample employees and all other tables.
+-- All INSERTs use ON CONFLICT DO NOTHING so it is safe to re-run.
 -- ============================================================
+
+
+-- ============================================================
+-- PART 0 — SEED DATA: SAMPLE EMPLOYEES (400 employees)
+-- ============================================================
+-- This section creates a representative org structure with
+-- 4 CXOs, 16 HODs, 80 TMs, and 300 ICs across 20 departments.
+
+DO $$
+DECLARE
+    dept_names TEXT[] := ARRAY[
+        'Engineering', 'Product Management', 'Sales', 'Marketing',
+        'Customer Success', 'Finance', 'Human Resources', 'Operations',
+        'Legal', 'IT', 'Data Science', 'Design', 'Quality Assurance',
+        'Business Development', 'Research', 'Security', 'DevOps',
+        'Support', 'Analytics', 'Strategy'
+    ];
+    dept TEXT;
+    cxo_id TEXT;
+    hod_id TEXT;
+    tm_id TEXT;
+    emp_counter INTEGER := 1;
+    i INTEGER;
+    j INTEGER;
+    k INTEGER;
+BEGIN
+    -- Create 4 CXO (no manager)
+    FOR i IN 1..4 LOOP
+        INSERT INTO employees (
+            employee_id, full_name, email, department, designation,
+            reporting_manager_id, date_of_joining, group_name,
+            cross_functional_groups, applicable_competencies, is_active,
+            leadership_level, synced_at
+        ) VALUES (
+            'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
+            'CXO ' || emp_counter,
+            'cxo' || emp_counter || '@company.com',
+            dept_names[((i-1) % 20) + 1],
+            CASE i
+                WHEN 1 THEN 'Chief Executive Officer'
+                WHEN 2 THEN 'Chief Technology Officer'
+                WHEN 3 THEN 'Chief Operating Officer'
+                ELSE 'Chief Financial Officer'
+            END,
+            NULL,
+            '2020-01-01'::DATE + (i * 30),
+            'CXO',
+            jsonb_build_array(dept_names[((i-1) % 20) + 1], dept_names[((i+4) % 20) + 1]),
+            jsonb_build_array('EXPR', 'TDEV', 'INNO', 'BACU', 'CULT'),
+            TRUE,
+            1,
+            NOW()
+        ) ON CONFLICT (employee_id) DO NOTHING;
+        emp_counter := emp_counter + 1;
+    END LOOP;
+
+    -- Create 16 HODs (4 per CXO)
+    FOR i IN 1..16 LOOP
+        cxo_id := 'EMP' || LPAD(((i-1) / 4 + 1)::TEXT, 3, '0');
+        INSERT INTO employees (
+            employee_id, full_name, email, department, designation,
+            reporting_manager_id, date_of_joining, group_name,
+            cross_functional_groups, applicable_competencies, is_active,
+            leadership_level, synced_at
+        ) VALUES (
+            'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
+            'HOD ' || emp_counter,
+            'hod' || emp_counter || '@company.com',
+            dept_names[((i-1) % 20) + 1],
+            'Head of ' || dept_names[((i-1) % 20) + 1],
+            cxo_id,
+            '2020-03-01'::DATE + (i * 15),
+            'HOD',
+            jsonb_build_array(dept_names[((i-1) % 20) + 1], dept_names[((i+5) % 20) + 1], dept_names[((i+10) % 20) + 1]),
+            jsonb_build_array('STRT', 'XFNL', 'RSMG', 'CHMG', 'EXPR', 'TDEV', 'INNO', 'BACU', 'CULT', 'PROF'),
+            TRUE,
+            2,
+            NOW()
+        ) ON CONFLICT (employee_id) DO NOTHING;
+        emp_counter := emp_counter + 1;
+    END LOOP;
+
+    -- Create 80 TMs (5 per HOD)
+    FOR i IN 1..80 LOOP
+        hod_id := 'EMP' || LPAD(((i-1) / 5 + 5)::TEXT, 3, '0');
+        INSERT INTO employees (
+            employee_id, full_name, email, department, designation,
+            reporting_manager_id, date_of_joining, group_name,
+            cross_functional_groups, applicable_competencies, is_active,
+            leadership_level, synced_at
+        ) VALUES (
+            'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
+            'Team Manager ' || emp_counter,
+            'tm' || emp_counter || '@company.com',
+            dept_names[((i-1) % 20) + 1],
+            'Team Lead - ' || dept_names[((i-1) % 20) + 1],
+            hod_id,
+            '2021-01-01'::DATE + (i * 7),
+            'TM',
+            jsonb_build_array(dept_names[((i-1) % 20) + 1], dept_names[((i+3) % 20) + 1]),
+            jsonb_build_array('LEAD', 'MENT', 'DCSN', 'DLGT', 'CNFL', 'ACCT', 'COMM', 'PLAN', 'RECG'),
+            TRUE,
+            3,
+            NOW()
+        ) ON CONFLICT (employee_id) DO NOTHING;
+        emp_counter := emp_counter + 1;
+    END LOOP;
+
+    -- Create 300 ICs (3-4 per TM)
+    FOR i IN 1..300 LOOP
+        tm_id := 'EMP' || LPAD(((i-1) / 4 + 21)::TEXT, 3, '0');
+        INSERT INTO employees (
+            employee_id, full_name, email, department, designation,
+            reporting_manager_id, date_of_joining, group_name,
+            cross_functional_groups, applicable_competencies, is_active,
+            leadership_level, synced_at
+        ) VALUES (
+            'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
+            'Employee ' || emp_counter,
+            'emp' || emp_counter || '@company.com',
+            dept_names[((i-1) % 20) + 1],
+            CASE (i % 5)
+                WHEN 0 THEN 'Senior ' || dept_names[((i-1) % 20) + 1] || ' Specialist'
+                WHEN 1 THEN dept_names[((i-1) % 20) + 1] || ' Analyst'
+                WHEN 2 THEN 'Junior ' || dept_names[((i-1) % 20) + 1] || ' Associate'
+                WHEN 3 THEN dept_names[((i-1) % 20) + 1] || ' Coordinator'
+                ELSE dept_names[((i-1) % 20) + 1] || ' Specialist'
+            END,
+            tm_id,
+            '2022-01-01'::DATE + (i * 3),
+            'IC',
+            jsonb_build_array(dept_names[((i-1) % 20) + 1], dept_names[((i+7) % 20) + 1]),
+            jsonb_build_array('COMM', 'TEAM', 'QUAL', 'RELY', 'INIT', 'ADPT', 'GROW', 'PROF'),
+            TRUE,
+            4,
+            NOW()
+        ) ON CONFLICT (employee_id) DO NOTHING;
+        emp_counter := emp_counter + 1;
+    END LOOP;
+
+END $$;
 
 
 -- ============================================================
@@ -114,6 +254,105 @@ ON CONFLICT DO NOTHING;
 
 
 -- ============================================================
+-- PART 3A — SEED DATA: QUESTION TEMPLATES
+-- ============================================================
+
+-- Template 1: Standard Full Set (all 46 questions)
+INSERT INTO question_templates (template_id, template_name, description, created_by)
+VALUES
+(
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID,
+    'Standard Full Set (46 Questions)',
+    'Complete question set covering all competencies for IC, TM, and HOD levels',
+    'EMP001'
+)
+ON CONFLICT (template_id) DO NOTHING;
+
+-- Template 2: Simplified Set (30 questions - top 10 per level)
+INSERT INTO question_templates (template_id, template_name, description, created_by)
+VALUES
+(
+    'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID,
+    'Simplified Set (30 Questions)',
+    'Condensed question set focusing on core competencies - 10 IC, 10 TM, 10 HOD',
+    'EMP001'
+)
+ON CONFLICT (template_id) DO NOTHING;
+
+-- Template 3: Leadership Focus (TM + HOD only)
+INSERT INTO question_templates (template_id, template_name, description, created_by)
+VALUES
+(
+    'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID,
+    'Leadership Focus (TM/HOD)',
+    'Leadership-focused template for TM and HOD levels only (31 questions)',
+    'EMP001'
+)
+ON CONFLICT (template_id) DO NOTHING;
+
+
+-- ============================================================
+-- PART 3B — SEED DATA: TEMPLATE-QUESTION MAPPINGS
+-- ============================================================
+
+-- Template 1: All IC questions
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'IC'
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+-- Template 1: All TM questions
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'TM'
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+-- Template 1: All HOD questions
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'HOD'
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+-- Template 2: Simplified IC set (first 10 IC questions)
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'IC' AND order_number <= 10
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+-- Template 2: Simplified TM set (first 10 TM questions)
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'TM' AND order_number <= 10
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+-- Template 2: Simplified HOD set (first 10 HOD questions)
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'HOD' AND order_number <= 10
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+-- Template 3: All TM questions
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'TM'
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+-- Template 3: All HOD questions
+INSERT INTO template_questions (template_id, question_id)
+SELECT 'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID, question_id
+FROM   questions
+WHERE  set_type = 'HOD'
+ON CONFLICT (template_id, question_id) DO NOTHING;
+
+
+-- ============================================================
 -- PART 4 — SEED DATA: NOTIFICATION TEMPLATES
 -- ============================================================
 INSERT INTO notification_templates
@@ -161,50 +400,88 @@ ON CONFLICT (template_id) DO NOTHING;
 -- PART 5 — MOCK DATA: REVIEW CYCLES (3 cycles)
 -- ============================================================
 
--- Cycle 1: H1 2025 — PUBLISHED
+-- Cycle 1: H1 2025 — PUBLISHED (using Standard Full Set template)
 INSERT INTO review_cycles
     (cycle_id, cycle_name, start_date, end_date, duration_months,
      grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, created_by)
+     reminder_schedule, template_id, created_by)
 VALUES
 (
     '11111111-1111-1111-1111-111111111111'::UUID,
     'H1 2025 — 360 Review',
     '2025-01-06', '2025-06-30', 6,
     3, 'PUBLISHED', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'EMP001'
+    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
--- Cycle 2: H2 2025 — PUBLISHED
+-- Cycle 2: H2 2025 — PUBLISHED (using Standard Full Set template)
 INSERT INTO review_cycles
     (cycle_id, cycle_name, start_date, end_date, duration_months,
      grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, created_by)
+     reminder_schedule, template_id, created_by)
 VALUES
 (
     '22222222-2222-2222-2222-222222222222'::UUID,
     'H2 2025 — 360 Review',
     '2025-07-07', '2025-12-31', 6,
     3, 'PUBLISHED', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'EMP001'
+    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
--- Cycle 3: H1 2026 — ACTIVE (current)
+-- Cycle 3: H1 2026 — ACTIVE (current) (using Simplified Set template)
 INSERT INTO review_cycles
     (cycle_id, cycle_name, start_date, end_date, duration_months,
      grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, created_by)
+     reminder_schedule, template_id, created_by)
 VALUES
 (
     '33333333-3333-3333-3333-333333333333'::UUID,
     'H1 2026 — 360 Review',
     '2026-02-02', '2026-06-30', 6,
     3, 'ACTIVE', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'EMP001'
+    '[7,3,1]'::JSONB, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, 'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
+
+
+-- ============================================================
+-- PART 5A — UPDATE EMPLOYEES: LEADERSHIP LEVEL & ORG PATH
+-- ============================================================
+
+-- Set leadership_level based on group_name
+UPDATE employees SET leadership_level = CASE
+    WHEN group_name = 'CXO' THEN 1
+    WHEN group_name = 'HOD' THEN 2
+    WHEN group_name = 'TM'  THEN 3
+    WHEN group_name = 'IC'  THEN 4
+    ELSE NULL
+END;
+
+-- Build org_path (materialized path from root to employee)
+-- This is done via recursive CTE
+WITH RECURSIVE org_tree AS (
+    -- Anchor: employees with no manager (CXO level)
+    SELECT
+        employee_id,
+        ARRAY[employee_id] AS path
+    FROM employees
+    WHERE reporting_manager_id IS NULL
+
+    UNION ALL
+
+    -- Recursive: employees with managers
+    SELECT
+        e.employee_id,
+        ot.path || e.employee_id
+    FROM employees e
+    JOIN org_tree ot ON e.reporting_manager_id = ot.employee_id
+)
+UPDATE employees e
+SET org_path = ot.path
+FROM org_tree ot
+WHERE e.employee_id = ot.employee_id;
 
 
 -- ============================================================
@@ -866,6 +1143,152 @@ BEGIN
                 'CXO',              LEAST(ROUND(raw_score + 0.05, 2), 4.0)
             );
 
+            -- Detailed reviewer-competency breakdown (2D: reviewer_type -> competency -> score)
+            -- This provides granular analysis showing how each reviewer category rated each competency
+            DECLARE
+                rev_comp_breakdown JSONB;
+            BEGIN
+                rev_comp_breakdown := CASE emp_rec.group_name
+                    WHEN 'IC' THEN jsonb_build_object(
+                        'MANAGER', jsonb_build_object(
+                            'COMM', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'TEAM', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'QUAL', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
+                            'RELY', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'INIT', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'ADPT', LEAST(ROUND(raw_score - 0.10, 2), 4.0),
+                            'GROW', LEAST(ROUND(raw_score + 0.25, 2), 4.0),
+                            'PROF', LEAST(ROUND(raw_score + 0.15, 2), 4.0)
+                        ),
+                        'PEER', jsonb_build_object(
+                            'COMM', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'TEAM', LEAST(ROUND(raw_score - 0.20, 2), 4.0),
+                            'QUAL', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'RELY', LEAST(ROUND(raw_score - 0.15, 2), 4.0),
+                            'INIT', LEAST(ROUND(raw_score - 0.10, 2), 4.0),
+                            'ADPT', LEAST(ROUND(raw_score - 0.30, 2), 4.0),
+                            'GROW', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'PROF', LEAST(ROUND(raw_score - 0.05, 2), 4.0)
+                        ),
+                        'CROSS_FUNCTIONAL', jsonb_build_object(
+                            'COMM', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'TEAM', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'QUAL', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'RELY', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'INIT', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'ADPT', LEAST(ROUND(raw_score - 0.15, 2), 4.0),
+                            'GROW', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'PROF', LEAST(ROUND(raw_score + 0.00, 2), 4.0)
+                        )
+                    )
+                    WHEN 'TM' THEN jsonb_build_object(
+                        'MANAGER', jsonb_build_object(
+                            'LEAD', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'MENT', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'DCSN', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
+                            'DLGT', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'CNFL', LEAST(ROUND(raw_score - 0.15, 2), 4.0),
+                            'ACCT', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'COMM', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'PLAN', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'RECG', LEAST(ROUND(raw_score + 0.25, 2), 4.0)
+                        ),
+                        'PEER', jsonb_build_object(
+                            'LEAD', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'MENT', LEAST(ROUND(raw_score - 0.20, 2), 4.0),
+                            'DCSN', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'DLGT', LEAST(ROUND(raw_score - 0.25, 2), 4.0),
+                            'CNFL', LEAST(ROUND(raw_score - 0.35, 2), 4.0),
+                            'ACCT', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'COMM', LEAST(ROUND(raw_score - 0.10, 2), 4.0),
+                            'PLAN', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'RECG', LEAST(ROUND(raw_score + 0.05, 2), 4.0)
+                        ),
+                        'DIRECT_REPORT', jsonb_build_object(
+                            'LEAD', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
+                            'MENT', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'DCSN', LEAST(ROUND(raw_score + 0.40, 2), 4.0),
+                            'DLGT', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'CNFL', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'ACCT', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
+                            'COMM', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'PLAN', LEAST(ROUND(raw_score + 0.25, 2), 4.0),
+                            'RECG', LEAST(ROUND(raw_score + 0.35, 2), 4.0)
+                        ),
+                        'CROSS_FUNCTIONAL', jsonb_build_object(
+                            'LEAD', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'MENT', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'DCSN', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'DLGT', LEAST(ROUND(raw_score - 0.10, 2), 4.0),
+                            'CNFL', LEAST(ROUND(raw_score - 0.20, 2), 4.0),
+                            'ACCT', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'COMM', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'PLAN', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'RECG', LEAST(ROUND(raw_score + 0.10, 2), 4.0)
+                        )
+                    )
+                    WHEN 'HOD' THEN jsonb_build_object(
+                        'CXO', jsonb_build_object(
+                            'STRT', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
+                            'XFNL', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'RSMG', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'CHMG', LEAST(ROUND(raw_score - 0.10, 2), 4.0),
+                            'EXPR', LEAST(ROUND(raw_score + 0.35, 2), 4.0),
+                            'TDEV', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'INNO', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'BACU', LEAST(ROUND(raw_score + 0.25, 2), 4.0),
+                            'CULT', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'PROF', LEAST(ROUND(raw_score + 0.05, 2), 4.0)
+                        ),
+                        'PEER', jsonb_build_object(
+                            'STRT', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'XFNL', LEAST(ROUND(raw_score - 0.20, 2), 4.0),
+                            'RSMG', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'CHMG', LEAST(ROUND(raw_score - 0.30, 2), 4.0),
+                            'EXPR', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'TDEV', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'INNO', LEAST(ROUND(raw_score - 0.10, 2), 4.0),
+                            'BACU', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'CULT', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'PROF', LEAST(ROUND(raw_score - 0.15, 2), 4.0)
+                        ),
+                        'DIRECT_REPORT', jsonb_build_object(
+                            'STRT', LEAST(ROUND(raw_score + 0.25, 2), 4.0),
+                            'XFNL', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'RSMG', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'CHMG', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'EXPR', LEAST(ROUND(raw_score + 0.40, 2), 4.0),
+                            'TDEV', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'INNO', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'BACU', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'CULT', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'PROF', LEAST(ROUND(raw_score + 0.05, 2), 4.0)
+                        ),
+                        'CROSS_FUNCTIONAL', jsonb_build_object(
+                            'STRT', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'XFNL', LEAST(ROUND(raw_score - 0.15, 2), 4.0),
+                            'RSMG', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'CHMG', LEAST(ROUND(raw_score - 0.25, 2), 4.0),
+                            'EXPR', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'TDEV', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
+                            'INNO', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                            'BACU', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'CULT', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'PROF', LEAST(ROUND(raw_score - 0.10, 2), 4.0)
+                        )
+                    )
+                    ELSE -- CXO
+                        jsonb_build_object(
+                        'PEER', jsonb_build_object(
+                            'EXPR', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                            'TDEV', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                            'INNO', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
+                            'BACU', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
+                            'CULT', LEAST(ROUND(raw_score + 0.10, 2), 4.0)
+                        )
+                    )
+                END;
+
             -- Total reviewer count (deterministic 4–8)
             tot_rev := 4 + ((('x' || MD5(emp_rec.employee_id))::BIT(8)::INT) % 5);
 
@@ -880,12 +1303,16 @@ BEGIN
 
             INSERT INTO calculated_scores
                 (employee_id, cycle_id, self_score, colleague_score, final_label,
-                 competency_scores, reviewer_category_scores, total_reviewers, calculated_at)
+                 competency_scores, reviewer_category_scores, reviewer_competency_breakdown,
+                 total_reviewers, calculated_at)
             VALUES
                 (emp_rec.employee_id, cycle_rec.cycle_id,
                  self_s, raw_score, label_text,
-                 comp_scores, rev_cat_sc, tot_rev, calc_ts)
+                 comp_scores, rev_cat_sc, rev_comp_breakdown,
+                 tot_rev, calc_ts)
             ON CONFLICT (employee_id, cycle_id) DO NOTHING;
+
+            END;
 
         END LOOP;
     END LOOP;
