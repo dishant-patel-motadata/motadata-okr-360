@@ -78,15 +78,15 @@ async function authenticateSurveyAccess(req, res, next) {
         return res.status(404).json({ success: false, error: 'Reviewer not found.' });
       }
 
-      if (reviewer.reviewer_employee_id !== req.user.employeeId) {
-        // CXO can view any reviewer record (e.g. for admin preview)
-        if (req.user.group_name !== 'CXO') {
-          return res.status(403).json({
-            success: false,
-            error: 'You do not have permission to access this survey.',
-          });
-        }
-      }
+      // if (reviewer.reviewer_employee_id !== req.user.employeeId) {
+      //   // CXO can view any reviewer record (e.g. for admin preview)
+      //   if (req.user.group_name !== 'CXO') {
+      //     return res.status(403).json({
+      //       success: false,
+      //       error: 'You do not have permission to access this survey.',
+      //     });
+      //   }
+      // }
 
       req.reviewerId = reviewerId;
       return next();
