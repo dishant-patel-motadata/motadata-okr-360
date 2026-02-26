@@ -25,17 +25,44 @@ DECLARE
         'Business Development', 'Research', 'Security', 'DevOps',
         'Support', 'Analytics', 'Strategy'
     ];
+
+    -- 50 Indian first names (mix of male/female)
+    first_names TEXT[] := ARRAY[
+        'Aarav','Aditi','Aditya','Akshay','Amit','Ananya','Anil','Anjali','Ankita','Arjun',
+        'Bhavna','Chetan','Deepak','Devi','Dhruv','Divya','Gaurav','Geeta','Harsh','Isha',
+        'Jayesh','Kajal','Karan','Kavita','Kunal','Lakshmi','Manish','Meera','Mohit','Nandini',
+        'Neha','Nikhil','Pallavi','Pooja','Pradeep','Priya','Rahul','Rajesh','Ravi','Rekha',
+        'Rohit','Sakshi','Sandeep','Sanjay','Shreya','Sunil','Swati','Tanvi','Varun','Vikram'
+    ];
+
+    -- 40 Indian last names
+    last_names TEXT[] := ARRAY[
+        'Sharma','Patel','Mehta','Joshi','Verma','Gupta','Singh','Kumar','Iyer','Nair',
+        'Reddy','Rao','Desai','Shah','Trivedi','Kapoor','Malhotra','Chauhan','Tiwari','Pandey',
+        'Mishra','Bhatt','Kulkarni','Patil','Deshpande','Chopra','Bhatia','Saxena','Agarwal','Thakur',
+        'Das','Ghosh','Mukherjee','Banerjee','Sinha','Prasad','Menon','Pillai','Hegde','Naidu'
+    ];
+
     dept TEXT;
     cxo_id TEXT;
     hod_id TEXT;
     tm_id TEXT;
     emp_counter INTEGER := 1;
+    emp_first TEXT;
+    emp_last TEXT;
+    emp_full TEXT;
+    emp_email TEXT;
     i INTEGER;
     j INTEGER;
     k INTEGER;
 BEGIN
     -- Create 4 CXO (no manager)
     FOR i IN 1..4 LOOP
+        emp_first := first_names[((emp_counter * 7 + 3) % 50) + 1];
+        emp_last  := last_names[((emp_counter * 11 + 5) % 40) + 1];
+        emp_full  := emp_first || ' ' || emp_last;
+        emp_email := LOWER(emp_first) || '.' || LOWER(emp_last) || '@motadata.com';
+
         INSERT INTO employees (
             employee_id, full_name, email, department, designation,
             reporting_manager_id, date_of_joining, group_name,
@@ -43,8 +70,8 @@ BEGIN
             leadership_level, synced_at
         ) VALUES (
             'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
-            'CXO ' || emp_counter,
-            'cxo' || emp_counter || '@company.com',
+            emp_full,
+            emp_email,
             dept_names[((i-1) % 20) + 1],
             CASE i
                 WHEN 1 THEN 'Chief Executive Officer'
@@ -67,6 +94,11 @@ BEGIN
     -- Create 16 HODs (4 per CXO)
     FOR i IN 1..16 LOOP
         cxo_id := 'EMP' || LPAD(((i-1) / 4 + 1)::TEXT, 3, '0');
+        emp_first := first_names[((emp_counter * 7 + 3) % 50) + 1];
+        emp_last  := last_names[((emp_counter * 11 + 5) % 40) + 1];
+        emp_full  := emp_first || ' ' || emp_last;
+        emp_email := LOWER(emp_first) || '.' || LOWER(emp_last) || '@motadata.com';
+
         INSERT INTO employees (
             employee_id, full_name, email, department, designation,
             reporting_manager_id, date_of_joining, group_name,
@@ -74,8 +106,8 @@ BEGIN
             leadership_level, synced_at
         ) VALUES (
             'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
-            'HOD ' || emp_counter,
-            'hod' || emp_counter || '@company.com',
+            emp_full,
+            emp_email,
             dept_names[((i-1) % 20) + 1],
             'Head of ' || dept_names[((i-1) % 20) + 1],
             cxo_id,
@@ -93,6 +125,11 @@ BEGIN
     -- Create 80 TMs (5 per HOD)
     FOR i IN 1..80 LOOP
         hod_id := 'EMP' || LPAD(((i-1) / 5 + 5)::TEXT, 3, '0');
+        emp_first := first_names[((emp_counter * 7 + 3) % 50) + 1];
+        emp_last  := last_names[((emp_counter * 11 + 5) % 40) + 1];
+        emp_full  := emp_first || ' ' || emp_last;
+        emp_email := LOWER(emp_first) || '.' || LOWER(emp_last) || '.' || emp_counter || '@motadata.com';
+
         INSERT INTO employees (
             employee_id, full_name, email, department, designation,
             reporting_manager_id, date_of_joining, group_name,
@@ -100,8 +137,8 @@ BEGIN
             leadership_level, synced_at
         ) VALUES (
             'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
-            'Team Manager ' || emp_counter,
-            'tm' || emp_counter || '@company.com',
+            emp_full,
+            emp_email,
             dept_names[((i-1) % 20) + 1],
             'Team Lead - ' || dept_names[((i-1) % 20) + 1],
             hod_id,
@@ -119,6 +156,11 @@ BEGIN
     -- Create 300 ICs (3-4 per TM)
     FOR i IN 1..300 LOOP
         tm_id := 'EMP' || LPAD(((i-1) / 4 + 21)::TEXT, 3, '0');
+        emp_first := first_names[((emp_counter * 7 + 3) % 50) + 1];
+        emp_last  := last_names[((emp_counter * 11 + 5) % 40) + 1];
+        emp_full  := emp_first || ' ' || emp_last;
+        emp_email := LOWER(emp_first) || '.' || LOWER(emp_last) || '.' || emp_counter || '@motadata.com';
+
         INSERT INTO employees (
             employee_id, full_name, email, department, designation,
             reporting_manager_id, date_of_joining, group_name,
@@ -126,8 +168,8 @@ BEGIN
             leadership_level, synced_at
         ) VALUES (
             'EMP' || LPAD(emp_counter::TEXT, 3, '0'),
-            'Employee ' || emp_counter,
-            'emp' || emp_counter || '@company.com',
+            emp_full,
+            emp_email,
             dept_names[((i-1) % 20) + 1],
             CASE (i % 5)
                 WHEN 0 THEN 'Senior ' || dept_names[((i-1) % 20) + 1] || ' Specialist'
@@ -405,14 +447,14 @@ ON CONFLICT (template_id) DO NOTHING;
 INSERT INTO review_cycles
     (cycle_id, cycle_name, start_date, end_date, duration_months,
      grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, template_id, created_by)
+     reminder_schedule, template_id, employee_join_date_before, created_by)
 VALUES
 (
     '11111111-1111-1111-1111-111111111111'::UUID,
     'H1 2025 — 360 Review',
     '2025-01-06', '2025-06-30', 6,
     3, 'PUBLISHED', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 'EMP001'
+    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, '2024-12-31', 'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
@@ -420,14 +462,14 @@ ON CONFLICT (cycle_id) DO NOTHING;
 INSERT INTO review_cycles
     (cycle_id, cycle_name, start_date, end_date, duration_months,
      grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, template_id, created_by)
+     reminder_schedule, template_id, employee_join_date_before, created_by)
 VALUES
 (
     '22222222-2222-2222-2222-222222222222'::UUID,
     'H2 2025 — 360 Review',
     '2025-07-07', '2025-12-31', 6,
     3, 'PUBLISHED', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 'EMP001'
+    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, '2025-06-30', 'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
@@ -435,20 +477,70 @@ ON CONFLICT (cycle_id) DO NOTHING;
 INSERT INTO review_cycles
     (cycle_id, cycle_name, start_date, end_date, duration_months,
      grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, template_id, created_by)
+     reminder_schedule, template_id, employee_join_date_before, created_by)
 VALUES
 (
     '33333333-3333-3333-3333-333333333333'::UUID,
     'H1 2026 — 360 Review',
     '2026-02-02', '2026-06-30', 6,
     3, 'ACTIVE', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, 'EMP001'
+    '[7,3,1]'::JSONB, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, '2025-12-31', 'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
 
 -- ============================================================
--- PART 5A — UPDATE EMPLOYEES: LEADERSHIP LEVEL & ORG PATH
+-- PART 5A — SEED DATA: REVIEWER ROLE CONFIG
+--   Role-specific reviewer counts per cycle.
+-- ============================================================
+
+-- H1 2025 role configs
+INSERT INTO reviewer_role_config (cycle_id, role, min_reviewers, max_reviewers, selected_count, updated_by)
+VALUES
+    ('11111111-1111-1111-1111-111111111111'::UUID, 'IC',  2, 5, 3, 'EMP005'),
+    ('11111111-1111-1111-1111-111111111111'::UUID, 'TM',  3, 6, 4, 'EMP005'),
+    ('11111111-1111-1111-1111-111111111111'::UUID, 'HOD', 3, 8, 5, 'EMP005'),
+    ('11111111-1111-1111-1111-111111111111'::UUID, 'CXO', 4, 8, 6, 'EMP005')
+ON CONFLICT (cycle_id, role) DO NOTHING;
+
+-- H2 2025 role configs
+INSERT INTO reviewer_role_config (cycle_id, role, min_reviewers, max_reviewers, selected_count, updated_by)
+VALUES
+    ('22222222-2222-2222-2222-222222222222'::UUID, 'IC',  2, 5, 3, 'EMP005'),
+    ('22222222-2222-2222-2222-222222222222'::UUID, 'TM',  3, 6, 4, 'EMP005'),
+    ('22222222-2222-2222-2222-222222222222'::UUID, 'HOD', 3, 8, 5, 'EMP005'),
+    ('22222222-2222-2222-2222-222222222222'::UUID, 'CXO', 4, 8, 6, 'EMP005')
+ON CONFLICT (cycle_id, role) DO NOTHING;
+
+-- H1 2026 role configs (active cycle)
+INSERT INTO reviewer_role_config (cycle_id, role, min_reviewers, max_reviewers, selected_count, updated_by)
+VALUES
+    ('33333333-3333-3333-3333-333333333333'::UUID, 'IC',  2, 6, 4, 'EMP005'),
+    ('33333333-3333-3333-3333-333333333333'::UUID, 'TM',  3, 7, 5, 'EMP005'),
+    ('33333333-3333-3333-3333-333333333333'::UUID, 'HOD', 4, 8, 6, 'EMP005'),
+    ('33333333-3333-3333-3333-333333333333'::UUID, 'CXO', 4, 8, 7, 'EMP005')
+ON CONFLICT (cycle_id, role) DO NOTHING;
+
+
+-- ============================================================
+-- PART 5B — SEED DATA: EMPLOYEE MAPPING UPLOADS
+--   Sample CSV upload records for tracking.
+-- ============================================================
+INSERT INTO employee_mapping_uploads
+    (cycle_id, file_name, file_url, total_rows, processed_rows, failed_rows, status, uploaded_by)
+VALUES
+(
+    '33333333-3333-3333-3333-333333333333'::UUID,
+    'h1-2026-reviewer-mapping.csv',
+    '/uploads/mappings/h1-2026-reviewer-mapping.csv',
+    400, 398, 2,
+    'COMPLETED',
+    'EMP005'
+);
+
+
+-- ============================================================
+-- PART 5C — UPDATE EMPLOYEES: LEADERSHIP LEVEL & ORG PATH
 -- ============================================================
 
 -- Set leadership_level based on group_name

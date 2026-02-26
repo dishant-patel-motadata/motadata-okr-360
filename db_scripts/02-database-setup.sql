@@ -17,23 +17,25 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 -- ============================================================
 -- PART 2 — DROP EXISTING TABLES (clean slate)
 -- ============================================================
-DROP TABLE IF EXISTS ad_sync_log           CASCADE;
-DROP TABLE IF EXISTS audit_log             CASCADE;
-DROP TABLE IF EXISTS notification_log      CASCADE;
-DROP TABLE IF EXISTS notification_templates CASCADE;
-DROP TABLE IF EXISTS calculated_scores     CASCADE;
-DROP TABLE IF EXISTS survey_comments       CASCADE;
-DROP TABLE IF EXISTS survey_responses      CASCADE;
-DROP TABLE IF EXISTS survey_reviewers      CASCADE;
-DROP TABLE IF EXISTS survey_assignments    CASCADE;
-DROP TABLE IF EXISTS self_feedback         CASCADE;
-DROP TABLE IF EXISTS template_questions    CASCADE;
-DROP TABLE IF EXISTS question_templates    CASCADE;
-DROP TABLE IF EXISTS questions             CASCADE;
-DROP TABLE IF EXISTS competencies          CASCADE;
-DROP TABLE IF EXISTS reviewer_config       CASCADE;
-DROP TABLE IF EXISTS review_cycles         CASCADE;
-DROP TABLE IF EXISTS employees             CASCADE;
+DROP TABLE IF EXISTS ad_sync_log              CASCADE;
+DROP TABLE IF EXISTS audit_log                CASCADE;
+DROP TABLE IF EXISTS notification_log         CASCADE;
+DROP TABLE IF EXISTS notification_templates   CASCADE;
+DROP TABLE IF EXISTS calculated_scores        CASCADE;
+DROP TABLE IF EXISTS survey_comments          CASCADE;
+DROP TABLE IF EXISTS survey_responses         CASCADE;
+DROP TABLE IF EXISTS survey_reviewers         CASCADE;
+DROP TABLE IF EXISTS survey_assignments       CASCADE;
+DROP TABLE IF EXISTS self_feedback            CASCADE;
+DROP TABLE IF EXISTS employee_mapping_uploads CASCADE;
+DROP TABLE IF EXISTS template_questions       CASCADE;
+DROP TABLE IF EXISTS question_templates       CASCADE;
+DROP TABLE IF EXISTS questions                CASCADE;
+DROP TABLE IF EXISTS competencies             CASCADE;
+DROP TABLE IF EXISTS reviewer_role_config     CASCADE;
+DROP TABLE IF EXISTS reviewer_config          CASCADE;
+DROP TABLE IF EXISTS review_cycles            CASCADE;
+DROP TABLE IF EXISTS employees                CASCADE;
 
 
 -- ============================================================
@@ -127,6 +129,7 @@ CREATE TABLE review_cycles (
     enable_colleague_feedback BOOLEAN NOT NULL DEFAULT TRUE,
     reminder_schedule         JSONB DEFAULT '[7,3,1]',
     template_id               UUID,           -- FK to question_templates (set on cycle creation)
+    employee_join_date_before DATE,           -- filter: include only employees who joined on or before this date
     created_by                TEXT REFERENCES employees(employee_id),
     created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -238,6 +241,50 @@ CREATE TABLE reviewer_config (
 );
 
 -- ----------------------------------------------------------
+-- 3.5b reviewer_role_config
+-- PURPOSE : Stores per-role reviewer count settings within the
+--           global min/max bounds from reviewer_config.  For each
+--           role (IC, TM, HOD, CXO) and each cycle, the admin
+--           sets a tighter min–max range and then selects a
+--           fixed count (selected_count) from that range.
+-- WHY IT EXISTS :
+--   • Different roles need different numbers of reviewers — an
+--     IC might need 3 reviewers while an HOD needs 6.
+--   • The selected_count becomes the exact number of reviewers
+--     (X) that every employee of that role must have in the
+--     cycle.  Reviewers may come from different roles, but the
+--     total must equal selected_count.
+--   • Per-cycle scoping (via cycle_id) lets HR adjust counts
+--     across cycles without losing history.
+-- KEY FIELDS :
+--   cycle_id       – FK to review_cycles; each cycle can have
+--                    its own role-based reviewer config.
+--   role           – IC / TM / HOD / CXO; the employee role
+--                    this config applies to.
+--   min_reviewers  – Lower bound for this role (within global).
+--   max_reviewers  – Upper bound for this role (within global).
+--   selected_count – The exact reviewer count chosen by admin
+--                    from the min–max range for this role.
+--   UNIQUE(cycle_id, role) – One config per role per cycle.
+-- ----------------------------------------------------------
+CREATE TABLE reviewer_role_config (
+    config_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cycle_id       UUID NOT NULL REFERENCES review_cycles(cycle_id) ON DELETE CASCADE,
+    role           TEXT NOT NULL CHECK (role IN ('IC','TM','HOD','CXO')),
+    min_reviewers  INTEGER NOT NULL DEFAULT 2,
+    max_reviewers  INTEGER NOT NULL DEFAULT 8,
+    selected_count INTEGER,  -- the fixed reviewer count chosen from min–max
+    updated_by     TEXT REFERENCES employees(employee_id),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (cycle_id, role),
+    CONSTRAINT chk_role_minmax CHECK (min_reviewers <= max_reviewers),
+    CONSTRAINT chk_selected_in_range CHECK (
+        selected_count IS NULL
+        OR (selected_count >= min_reviewers AND selected_count <= max_reviewers)
+    )
+);
+
+-- ----------------------------------------------------------
 -- 3.6 question_templates
 -- PURPOSE : Stores reusable question set templates that can be
 --           assigned to review cycles.  Allows HR to create
@@ -261,13 +308,15 @@ CREATE TABLE reviewer_config (
 --                   using them remain unaffected.
 -- ----------------------------------------------------------
 CREATE TABLE question_templates (
-    template_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_name TEXT NOT NULL UNIQUE,
-    description   TEXT,
-    created_by    TEXT REFERENCES employees(employee_id),
-    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    template_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_name  TEXT NOT NULL UNIQUE,
+    description    TEXT,
+    cloned_from    UUID REFERENCES question_templates(template_id),  -- source template if this was cloned
+    source_file_url TEXT,          -- URL / path of an uploaded file used to create this template
+    created_by     TEXT REFERENCES employees(employee_id),
+    is_active      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ----------------------------------------------------------
@@ -370,6 +419,45 @@ CREATE TABLE survey_assignments (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (employee_id, cycle_id)
+);
+
+-- ----------------------------------------------------------
+-- 3.9b employee_mapping_uploads
+-- PURPOSE : Tracks CSV file uploads used to bulk-create
+--           employee-reviewer mappings for a cycle.  Stores
+--           the file reference, row counts, and any errors
+--           so HR can audit and re-process failed uploads.
+-- WHY IT EXISTS :
+--   • Bulk mapping via CSV is the primary workflow for large
+--     organisations.  Without a log, there is no way to know
+--     which file produced the current reviewer mappings, or
+--     to retry a failed import.
+--   • Error details (failed_rows, error_details) enable the
+--     UI to show a per-row error report after upload.
+-- KEY FIELDS :
+--   cycle_id       – FK to review_cycles; scopes the upload.
+--   file_name      – Original filename for display / audit.
+--   file_url       – Storage path / URL of the uploaded CSV.
+--   total_rows     – Total data rows in the file.
+--   processed_rows – Successfully imported rows.
+--   failed_rows    – Rows that failed validation.
+--   error_details  – JSONB array of per-row error info.
+--   status         – PENDING → PROCESSING → COMPLETED | FAILED.
+--   uploaded_by    – FK to employees (admin who uploaded).
+-- ----------------------------------------------------------
+CREATE TABLE employee_mapping_uploads (
+    upload_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cycle_id       UUID NOT NULL REFERENCES review_cycles(cycle_id),
+    file_name      TEXT NOT NULL,
+    file_url       TEXT NOT NULL,
+    total_rows     INTEGER NOT NULL DEFAULT 0,
+    processed_rows INTEGER NOT NULL DEFAULT 0,
+    failed_rows    INTEGER NOT NULL DEFAULT 0,
+    error_details  JSONB DEFAULT '[]',
+    status         TEXT NOT NULL DEFAULT 'PENDING'
+                       CHECK (status IN ('PENDING','PROCESSING','COMPLETED','FAILED')),
+    uploaded_by    TEXT REFERENCES employees(employee_id),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ----------------------------------------------------------
@@ -729,7 +817,7 @@ BEGIN
     FOREACH tbl IN ARRAY ARRAY[
         'employees','review_cycles','competencies','questions',
         'question_templates','self_feedback','survey_assignments',
-        'calculated_scores','notification_templates'
+        'calculated_scores','notification_templates','reviewer_role_config'
     ]
     LOOP
         EXECUTE format(
@@ -790,6 +878,14 @@ CREATE INDEX idx_scores_employee_cycle   ON calculated_scores(employee_id, cycle
 CREATE INDEX idx_notif_log_recipient     ON notification_log(recipient_id);
 CREATE INDEX idx_notif_log_status        ON notification_log(status);
 
+-- Reviewer Role Config
+CREATE INDEX idx_rrc_cycle               ON reviewer_role_config(cycle_id);
+CREATE INDEX idx_rrc_role                ON reviewer_role_config(role);
+
+-- Employee Mapping Uploads
+CREATE INDEX idx_emu_cycle               ON employee_mapping_uploads(cycle_id);
+CREATE INDEX idx_emu_status              ON employee_mapping_uploads(status);
+
 -- Audit
 CREATE INDEX idx_audit_user              ON audit_log(user_id);
 CREATE INDEX idx_audit_entity            ON audit_log(entity_type, entity_id);
@@ -804,3 +900,9 @@ COMMENT ON COLUMN employees.leadership_level IS '1=CXO, 2=HOD, 3=TM, 4=IC - for 
 COMMENT ON COLUMN employees.org_path IS 'Materialized path from organization root to this employee';
 COMMENT ON COLUMN review_cycles.template_id IS 'Question template used for this cycle (locked on creation)';
 COMMENT ON COLUMN calculated_scores.reviewer_competency_breakdown IS 'Detailed scores: reviewer_type -> competency -> avg_score for granular analysis';
+COMMENT ON TABLE reviewer_role_config IS 'Per-cycle, per-role reviewer count config (min, max, selected fixed count)';
+COMMENT ON COLUMN reviewer_role_config.selected_count IS 'Exact number of reviewers each employee of this role must have in the cycle';
+COMMENT ON COLUMN review_cycles.employee_join_date_before IS 'Filter: only include employees who joined on or before this date';
+COMMENT ON COLUMN question_templates.cloned_from IS 'Source template UUID if this template was cloned from another';
+COMMENT ON COLUMN question_templates.source_file_url IS 'URL/path of uploaded file used to create this template';
+COMMENT ON TABLE employee_mapping_uploads IS 'Tracks CSV uploads for bulk employee-reviewer mapping per cycle';
