@@ -17,25 +17,35 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";   -- gen_random_uuid()
 -- ============================================================
 -- PART 2 — DROP EXISTING TABLES (clean slate)
 -- ============================================================
-DROP TABLE IF EXISTS ad_sync_log              CASCADE;
-DROP TABLE IF EXISTS audit_log                CASCADE;
-DROP TABLE IF EXISTS notification_log         CASCADE;
-DROP TABLE IF EXISTS notification_templates   CASCADE;
-DROP TABLE IF EXISTS calculated_scores        CASCADE;
-DROP TABLE IF EXISTS survey_comments          CASCADE;
-DROP TABLE IF EXISTS survey_responses         CASCADE;
-DROP TABLE IF EXISTS survey_reviewers         CASCADE;
-DROP TABLE IF EXISTS survey_assignments       CASCADE;
-DROP TABLE IF EXISTS self_feedback            CASCADE;
-DROP TABLE IF EXISTS employee_mapping_uploads CASCADE;
-DROP TABLE IF EXISTS template_questions       CASCADE;
-DROP TABLE IF EXISTS question_templates       CASCADE;
-DROP TABLE IF EXISTS questions                CASCADE;
-DROP TABLE IF EXISTS competencies             CASCADE;
-DROP TABLE IF EXISTS reviewer_role_config     CASCADE;
-DROP TABLE IF EXISTS reviewer_config          CASCADE;
-DROP TABLE IF EXISTS review_cycles            CASCADE;
-DROP TABLE IF EXISTS employees                CASCADE;
+DROP TABLE IF EXISTS ad_sync_log                        CASCADE;
+DROP TABLE IF EXISTS audit_log                          CASCADE;
+DROP TABLE IF EXISTS notification_log                   CASCADE;
+DROP TABLE IF EXISTS notification_templates             CASCADE;
+DROP TABLE IF EXISTS calculated_scores                  CASCADE;
+DROP TABLE IF EXISTS survey_comments                    CASCADE;
+DROP TABLE IF EXISTS survey_responses                   CASCADE;
+DROP TABLE IF EXISTS survey_reviewers                   CASCADE;
+DROP TABLE IF EXISTS survey_assignments                 CASCADE;
+DROP TABLE IF EXISTS self_feedback                      CASCADE;
+DROP TABLE IF EXISTS employee_mapping_uploads           CASCADE;
+DROP TABLE IF EXISTS cycle_template_questions            CASCADE;
+DROP TABLE IF EXISTS cycle_group_owners                  CASCADE;
+DROP TABLE IF EXISTS cycle_groups                        CASCADE;
+DROP TABLE IF EXISTS reviewer_mapping_template_entries   CASCADE;
+DROP TABLE IF EXISTS reviewer_mapping_templates          CASCADE;
+DROP TABLE IF EXISTS template_questions                 CASCADE;
+DROP TABLE IF EXISTS question_templates                 CASCADE;
+DROP TABLE IF EXISTS questions                          CASCADE;
+DROP TABLE IF EXISTS competency_default_questions        CASCADE;
+DROP TABLE IF EXISTS competencies                       CASCADE;
+DROP TABLE IF EXISTS cycle_reviewer_type_config          CASCADE;
+DROP TABLE IF EXISTS reviewer_types                      CASCADE;
+DROP TABLE IF EXISTS reviewer_role_config               CASCADE;
+DROP TABLE IF EXISTS reviewer_config                    CASCADE;
+DROP TABLE IF EXISTS review_cycles                      CASCADE;
+DROP TABLE IF EXISTS rating_scale_options                CASCADE;
+DROP TABLE IF EXISTS rating_scales                       CASCADE;
+DROP TABLE IF EXISTS employees                          CASCADE;
 
 
 -- ============================================================
@@ -89,51 +99,128 @@ CREATE TABLE employees (
 );
 
 -- ----------------------------------------------------------
--- 3.2 review_cycles
--- PURPOSE : Represents a single time-boxed 360-feedback
---           campaign (e.g. "Q1 2026 Review").  One row = one
---           cycle that can span 3, 4, 6, or 12 months.
+-- 3.2 rating_scales
+-- PURPOSE : Master catalogue of rating scales that can be
+--           applied to question templates and review cycles.
+--           The default is a 4-point impact scale, but admins
+--           can create custom scales (2–10 options).
 -- WHY IT EXISTS :
---   • All survey activity — assignments, reviewers, responses,
---     scores, and notifications — is scoped to a cycle.  This
---     lets HR run multiple independent reviews over time and
---     compare results across cycles in trend reports.
+--   • Decoupling scales from questions allows the same
+--     question set to be used with different grading systems.
+--   • One scale is selected per question template / cycle.
 -- KEY FIELDS :
---   cycle_id              – UUID PK referenced by every
---                           downstream table.
---   status                – DRAFT → ACTIVE → CLOSING →
---                           COMPLETED → PUBLISHED.  Business
---                           rules enforce that surveys can only
---                           be submitted while ACTIVE/CLOSING.
---   duration_months       – Restricted to 3 / 4 / 6 / 12 to
---                           match standard appraisal cadences.
---   grace_period_days     – Extra days (0–7) after end_date
---                           during which late submissions are
---                           still accepted (CLOSING status).
---   reminder_schedule     – JSONB array of days-before-deadline
---                           when automated reminders fire
---                           (default [7, 3, 1]).
---   enable_self_feedback / enable_colleague_feedback – Feature
---                           toggles per cycle.
+--   scale_name – Human-friendly name (e.g. "4-Point Impact Scale").
+--   is_default – Exactly one row should be TRUE (system default).
+--   is_active  – Soft-delete; inactive scales can't be assigned
+--                to new cycles but existing cycles are unaffected.
+-- ----------------------------------------------------------
+CREATE TABLE rating_scales (
+    scale_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scale_name  TEXT NOT NULL UNIQUE,
+    is_default  BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------
+-- 3.2b rating_scale_options
+-- PURPOSE : The individual options within a rating scale.
+--           Each option has a numeric value, label, optional
+--           description, colour, and display order.
+-- WHY IT EXISTS :
+--   • Stores the actual rating values reviewers pick from.
+--   • Allows flexible scales (2–10 options per scale).
+-- KEY FIELDS :
+--   value         – Numeric score (e.g. 1, 2, 3, 4).
+--   label         – Display text (e.g. "Outstanding Impact").
+--   color         – Hex colour for badge rendering.
+--   display_order – Controls sequence on the form.
+-- ----------------------------------------------------------
+CREATE TABLE rating_scale_options (
+    option_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    scale_id      UUID NOT NULL REFERENCES rating_scales(scale_id) ON DELETE CASCADE,
+    value         INTEGER NOT NULL,
+    label         TEXT NOT NULL,
+    description   TEXT,
+    color         TEXT,               -- e.g. '#22C55E'
+    display_order INTEGER NOT NULL,
+    UNIQUE (scale_id, value),
+    UNIQUE (scale_id, display_order)
+);
+
+-- ----------------------------------------------------------
+-- 3.3 review_cycles
+-- PURPOSE : Represents a single time-boxed 360-feedback
+--           campaign (e.g. "H1 2026 360 Review").  One row =
+--           one cycle that progresses through a wizard-based
+--           setup and then through a defined state machine.
+-- WHY IT EXISTS :
+--   • All survey activity — assignments, groups, reviewers,
+--     responses, scores, and notifications — is scoped to a
+--     cycle.  This lets HR run multiple independent reviews
+--     over time and compare results across cycles.
+-- KEY FIELDS :
+--   cycle_id           – UUID PK referenced by every downstream table.
+--   status             – DRAFT → LAUNCHED → FORM_ACTIVE →
+--                        FORM_CLOSED → PUBLISHED.  Only one cycle
+--                        can be in LAUNCHED / FORM_ACTIVE / FORM_CLOSED
+--                        at any time.
+--   launch_date        – Tentative date when the cycle begins.
+--   form_submission_days / publish_review_days – Stage durations.
+--   exclude_weekly_offs / weekly_off_days – Weekend exclusion config.
+--   auto_advance_form_submission – Auto-close forms on deadline.
+--   visibility_config  – JSONB for 3-phase visibility rules.
+--   rating_scale_id    – FK to rating_scales (one scale per cycle).
+--   wizard_progress    – JSONB tracking which wizard steps are done.
 -- ----------------------------------------------------------
 CREATE TABLE review_cycles (
-    cycle_id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    cycle_name                TEXT NOT NULL,
-    start_date                DATE NOT NULL,
-    end_date                  DATE NOT NULL,
-    duration_months           INTEGER NOT NULL CHECK (duration_months IN (3,4,6,12)),
-    grace_period_days         INTEGER NOT NULL DEFAULT 3 CHECK (grace_period_days BETWEEN 0 AND 7),
-    status                    TEXT NOT NULL DEFAULT 'DRAFT'
-                                  CHECK (status IN ('DRAFT','ACTIVE','CLOSING','COMPLETED','PUBLISHED')),
-    enable_self_feedback      BOOLEAN NOT NULL DEFAULT TRUE,
-    enable_colleague_feedback BOOLEAN NOT NULL DEFAULT TRUE,
-    reminder_schedule         JSONB DEFAULT '[7,3,1]',
-    template_id               UUID,           -- FK to question_templates (set on cycle creation)
-    employee_join_date_before DATE,           -- filter: include only employees who joined on or before this date
-    created_by                TEXT REFERENCES employees(employee_id),
-    created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT chk_dates CHECK (end_date > start_date)
+    cycle_id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cycle_name                  TEXT NOT NULL,
+    description                 TEXT,                -- max 2000 chars (app-enforced)
+    review_type                 TEXT NOT NULL DEFAULT 'SAME_TIME_FOR_ALL'
+                                    CHECK (review_type IN ('SAME_TIME_FOR_ALL')),
+    frequency                   TEXT NOT NULL DEFAULT 'ONE_TIME'
+                                    CHECK (frequency IN ('ONE_TIME')),
+    status                      TEXT NOT NULL DEFAULT 'DRAFT'
+                                    CHECK (status IN ('DRAFT','LAUNCHED','FORM_ACTIVE','FORM_CLOSED','PUBLISHED')),
+
+    -- Timeline configuration (Step 4)
+    launch_date                 DATE,               -- tentative launch date
+    exclude_weekly_offs         BOOLEAN NOT NULL DEFAULT FALSE,
+    weekly_off_days             JSONB DEFAULT '["Saturday","Sunday"]',   -- days to exclude
+    form_submission_days        INTEGER DEFAULT 5,   -- Stage 1 duration
+    publish_review_days         INTEGER DEFAULT 2,   -- Stage 2 duration
+    auto_advance_form_submission BOOLEAN NOT NULL DEFAULT FALSE,
+
+    -- Computed stage dates (set on launch / recalculated)
+    form_start_date             DATE,
+    form_end_date               DATE,
+    publish_start_date          DATE,
+    publish_end_date            DATE,
+
+    -- Feedback toggles
+    enable_self_feedback        BOOLEAN NOT NULL DEFAULT TRUE,
+    enable_colleague_feedback   BOOLEAN NOT NULL DEFAULT TRUE,
+
+    -- Reminder configuration (Step 4)
+    enable_reminders            BOOLEAN NOT NULL DEFAULT TRUE,
+    reminder_days_before_deadline JSONB DEFAULT '[7,3,1]',
+
+    -- Visibility configuration (Step 5) — stored as structured JSONB
+    visibility_config           JSONB DEFAULT '{}',
+
+    -- Review form (Step 3)
+    rating_scale_id             UUID REFERENCES rating_scales(scale_id),
+    enable_comments             BOOLEAN NOT NULL DEFAULT TRUE,
+
+    -- Wizard state
+    wizard_progress             JSONB DEFAULT '{}',  -- e.g. {"step1":true,"step2":false,...}
+
+    -- Metadata
+    created_by                  TEXT REFERENCES employees(employee_id),
+    created_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ----------------------------------------------------------
@@ -171,7 +258,32 @@ CREATE TABLE competencies (
 );
 
 -- ----------------------------------------------------------
--- 3.4 questions
+-- 3.4b competency_default_questions
+-- PURPOSE : Stores default questions for each competency per
+--           role group.  When an admin adds a competency to a
+--           question template, these defaults auto-populate.
+-- WHY IT EXISTS :
+--   • Saves setup time: admin gets pre-filled questions when
+--     adding a competency to a template for a role group.
+--   • Changes here do NOT cascade into existing templates;
+--     only new additions use the defaults.
+-- KEY FIELDS :
+--   competency_id  – FK to competencies.
+--   role_group     – IC / TM / HOD (which set this default is for).
+--   question_text  – The default question text.
+--   display_order  – Order within this competency / role.
+-- ----------------------------------------------------------
+CREATE TABLE competency_default_questions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    competency_id   TEXT NOT NULL REFERENCES competencies(competency_id) ON DELETE CASCADE,
+    role_group      TEXT NOT NULL CHECK (role_group IN ('IC','TM','HOD')),
+    question_text   TEXT NOT NULL,
+    display_order   INTEGER NOT NULL DEFAULT 1,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------
+-- 3.5 questions
 -- PURPOSE : Stores the 46 rated survey questions split across
 --           three sets — IC (15), TM (15), and HOD (16) —
 --           each mapped to a competency and displayed in a
@@ -210,27 +322,67 @@ CREATE TABLE questions (
 );
 
 -- ----------------------------------------------------------
--- 3.5 reviewer_config
--- PURPOSE : A single-row admin settings table that controls
---           the minimum and maximum number of peer/colleague
---           reviewers that can be assigned to any one employee
---           in a cycle.
+-- 3.6 reviewer_types
+-- PURPOSE : Master catalogue of all reviewer types available
+--           in the platform.  Includes built-in types (Self,
+--           Reporting Manager, Peer, Subordinate, etc.) and
+--           supports admin-created custom reviewer types.
 -- WHY IT EXISTS :
---   • Externalising these limits (rather than hard-coding them)
---     lets the HR admin change them via the UI without a code
---     change.  For example, if the organisation decides to
---     increase the cap from 8 to 10 reviewers, only this row
---     needs updating.
---   • The application layer reads these values at assignment
---     time and enforces them through validation rules.
+--   • Flexible reviewer types that can be selected per cycle.
+--   • Custom reviewer types behave like built-in ones.
+--   • Referenced by cycle_reviewer_type_config and survey_reviewers.
 -- KEY FIELDS :
---   min_reviewers   – Lower bound; protects against under-
---                     reviewed employees (default 2).
---   max_reviewers   – Upper bound; prevents survey fatigue
---                     and keeps scoring statistically sound
---                     (default 8).
---   updated_by      – FK to employees so the audit trail shows
---                     which admin last changed the config.
+--   type_key   – Unique short key (e.g. 'SELF', 'REPORTING_MANAGER').
+--   type_name  – Display name shown in the UI.
+--   category   – ALWAYS_INCLUDED, MANAGERS, NOMINATED, CUSTOM.
+--   is_system  – TRUE for built-in types, FALSE for admin-created.
+-- ----------------------------------------------------------
+CREATE TABLE reviewer_types (
+    reviewer_type_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    type_key         TEXT NOT NULL UNIQUE,        -- e.g. 'SELF', 'REPORTING_MANAGER', 'PEER'
+    type_name        TEXT NOT NULL,               -- e.g. 'Reporting Manager'
+    description      TEXT,
+    category         TEXT NOT NULL DEFAULT 'CUSTOM'
+                         CHECK (category IN ('ALWAYS_INCLUDED','MANAGERS','NOMINATED','CUSTOM')),
+    is_system        BOOLEAN NOT NULL DEFAULT FALSE,
+    is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------
+-- 3.6b cycle_reviewer_type_config
+-- PURPOSE : Per-cycle configuration of which reviewer types
+--           are enabled and the min/max reviewer count limits
+--           per reviewer type per role group (IC/TM/HOD).
+-- WHY IT EXISTS :
+--   • The design requires that each cycle can enable different
+--     reviewer types and set different min/max per role group.
+--   • Example: Cycle X may require 2-4 Peers for IC employees
+--     but only 1-3 Peers for TM employees.
+--   • Replaces the old global reviewer_config and per-role
+--     reviewer_role_config tables.
+-- KEY FIELDS :
+--   reviewer_type_id – FK to reviewer_types master.
+--   role_group       – IC / TM / HOD (the employee's role group).
+--   min_reviewers    – Minimum number of this type per employee.
+--   max_reviewers    – Maximum number of this type per employee.
+-- ----------------------------------------------------------
+CREATE TABLE cycle_reviewer_type_config (
+    config_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cycle_id         UUID NOT NULL REFERENCES review_cycles(cycle_id) ON DELETE CASCADE,
+    reviewer_type_id UUID NOT NULL REFERENCES reviewer_types(reviewer_type_id),
+    role_group       TEXT NOT NULL CHECK (role_group IN ('IC','TM','HOD')),
+    min_reviewers    INTEGER NOT NULL DEFAULT 0,
+    max_reviewers    INTEGER NOT NULL DEFAULT 1,
+    UNIQUE (cycle_id, reviewer_type_id, role_group),
+    CONSTRAINT chk_minmax CHECK (min_reviewers <= max_reviewers AND min_reviewers >= 0)
+);
+
+-- ----------------------------------------------------------
+-- 3.5 reviewer_config  (DEPRECATED — kept for backward compatibility)
+-- PURPOSE : Legacy single-row global min/max reviewer config.
+--           Replaced by cycle_reviewer_type_config for new cycles.
 -- ----------------------------------------------------------
 CREATE TABLE reviewer_config (
     config_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -241,31 +393,9 @@ CREATE TABLE reviewer_config (
 );
 
 -- ----------------------------------------------------------
--- 3.5b reviewer_role_config
--- PURPOSE : Stores per-role reviewer count settings within the
---           global min/max bounds from reviewer_config.  For each
---           role (IC, TM, HOD, CXO) and each cycle, the admin
---           sets a tighter min–max range and then selects a
---           fixed count (selected_count) from that range.
--- WHY IT EXISTS :
---   • Different roles need different numbers of reviewers — an
---     IC might need 3 reviewers while an HOD needs 6.
---   • The selected_count becomes the exact number of reviewers
---     (X) that every employee of that role must have in the
---     cycle.  Reviewers may come from different roles, but the
---     total must equal selected_count.
---   • Per-cycle scoping (via cycle_id) lets HR adjust counts
---     across cycles without losing history.
--- KEY FIELDS :
---   cycle_id       – FK to review_cycles; each cycle can have
---                    its own role-based reviewer config.
---   role           – IC / TM / HOD / CXO; the employee role
---                    this config applies to.
---   min_reviewers  – Lower bound for this role (within global).
---   max_reviewers  – Upper bound for this role (within global).
---   selected_count – The exact reviewer count chosen by admin
---                    from the min–max range for this role.
---   UNIQUE(cycle_id, role) – One config per role per cycle.
+-- 3.5b reviewer_role_config  (DEPRECATED — kept for backward compatibility)
+-- PURPOSE : Legacy per-cycle per-role reviewer count config.
+--           Replaced by cycle_reviewer_type_config for new cycles.
 -- ----------------------------------------------------------
 CREATE TABLE reviewer_role_config (
     config_id      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -273,7 +403,7 @@ CREATE TABLE reviewer_role_config (
     role           TEXT NOT NULL CHECK (role IN ('IC','TM','HOD','CXO')),
     min_reviewers  INTEGER NOT NULL DEFAULT 2,
     max_reviewers  INTEGER NOT NULL DEFAULT 8,
-    selected_count INTEGER,  -- the fixed reviewer count chosen from min–max
+    selected_count INTEGER,
     updated_by     TEXT REFERENCES employees(employee_id),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (cycle_id, role),
@@ -308,15 +438,16 @@ CREATE TABLE reviewer_role_config (
 --                   using them remain unaffected.
 -- ----------------------------------------------------------
 CREATE TABLE question_templates (
-    template_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    template_name  TEXT NOT NULL UNIQUE,
-    description    TEXT,
-    cloned_from    UUID REFERENCES question_templates(template_id),  -- source template if this was cloned
-    source_file_url TEXT,          -- URL / path of an uploaded file used to create this template
-    created_by     TEXT REFERENCES employees(employee_id),
-    is_active      BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    template_id     UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_name   TEXT NOT NULL UNIQUE,
+    description     TEXT,
+    rating_scale_id UUID REFERENCES rating_scales(scale_id),  -- one scale per template
+    cloned_from     UUID REFERENCES question_templates(template_id),
+    source_file_url TEXT,
+    created_by      TEXT REFERENCES employees(employee_id),
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ----------------------------------------------------------
@@ -343,9 +474,112 @@ CREATE TABLE template_questions (
     template_question_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     template_id          UUID NOT NULL REFERENCES question_templates(template_id) ON DELETE CASCADE,
     question_id          TEXT NOT NULL REFERENCES questions(question_id),
+    role_group           TEXT NOT NULL CHECK (role_group IN ('IC','TM','HOD')),  -- which set within the template
+    display_order        INTEGER NOT NULL DEFAULT 1,    -- order within role_group
+    comment_enabled      BOOLEAN NOT NULL DEFAULT TRUE, -- per-question comment toggle
     is_active            BOOLEAN NOT NULL DEFAULT TRUE,
     created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (template_id, question_id)
+    UNIQUE (template_id, question_id, role_group)
+);
+
+-- ----------------------------------------------------------
+-- 3.8b reviewer_mapping_templates
+-- PURPOSE : Reusable snapshots of employee-to-reviewer
+--           assignments that can be imported into cycles.
+-- WHY IT EXISTS :
+--   • Saves admin time when the same reviewer structure
+--     repeats across cycles.
+--   • Can be created from scratch or saved from a cycle.
+-- KEY FIELDS :
+--   template_name – Unique name.
+--   description   – Optional notes.
+--   is_active     – Soft-delete.
+-- ----------------------------------------------------------
+CREATE TABLE reviewer_mapping_templates (
+    template_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_name TEXT NOT NULL UNIQUE,
+    description   TEXT,
+    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by    TEXT REFERENCES employees(employee_id),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ----------------------------------------------------------
+-- 3.8c reviewer_mapping_template_entries
+-- PURPOSE : Individual employee-to-reviewer assignments stored
+--           inside a reviewer mapping template.
+-- ----------------------------------------------------------
+CREATE TABLE reviewer_mapping_template_entries (
+    entry_id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    template_id      UUID NOT NULL REFERENCES reviewer_mapping_templates(template_id) ON DELETE CASCADE,
+    employee_id      TEXT NOT NULL REFERENCES employees(employee_id),
+    reviewer_id      TEXT NOT NULL REFERENCES employees(employee_id),
+    reviewer_type_id UUID NOT NULL REFERENCES reviewer_types(reviewer_type_id),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (template_id, employee_id, reviewer_id, reviewer_type_id)
+);
+
+-- ----------------------------------------------------------
+-- 3.8d cycle_groups
+-- PURPOSE : Groups within a review cycle.  Employees are
+--           organized into groups (IC, TM, HOD, or custom)
+--           and each group is assigned its own question
+--           template.  This is configured in wizard Step 6.
+-- WHY IT EXISTS :
+--   • Different employee categories need different question
+--     sets and different reviewer count rules.
+--   • Default groups (IC/TM/HOD) are auto-created on setup;
+--     admin can add custom groups or rename.
+-- KEY FIELDS :
+--   group_name          – Display name (e.g. "IC", "TM", "HOD").
+--   question_template_id – FK to question_templates; each group
+--                          gets its own template.
+-- ----------------------------------------------------------
+CREATE TABLE cycle_groups (
+    group_id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cycle_id              UUID NOT NULL REFERENCES review_cycles(cycle_id) ON DELETE CASCADE,
+    group_name            TEXT NOT NULL,
+    question_template_id  UUID REFERENCES question_templates(template_id),
+    display_order         INTEGER DEFAULT 1,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (cycle_id, group_name)
+);
+
+-- ----------------------------------------------------------
+-- 3.8e cycle_group_owners
+-- PURPOSE : Admin(s) responsible for managing a cycle group.
+-- ----------------------------------------------------------
+CREATE TABLE cycle_group_owners (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id     UUID NOT NULL REFERENCES cycle_groups(group_id) ON DELETE CASCADE,
+    employee_id  TEXT NOT NULL REFERENCES employees(employee_id),
+    UNIQUE (group_id, employee_id)
+);
+
+-- ----------------------------------------------------------
+-- 3.8f cycle_template_questions
+-- PURPOSE : Per-cycle-group snapshot of questions copied from
+--           the selected question template.  Admin can
+--           enable/disable or reorder questions here without
+--           affecting the master template.
+-- WHY IT EXISTS :
+--   • "Admin can customize the selected template for this
+--     cycle… without affecting the master template."
+--   • When a template is selected for a group, its questions
+--     are copied here; all subsequent edits happen on this
+--     copy.
+-- ----------------------------------------------------------
+CREATE TABLE cycle_template_questions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id        UUID NOT NULL REFERENCES cycle_groups(group_id) ON DELETE CASCADE,
+    question_id     TEXT NOT NULL REFERENCES questions(question_id),
+    display_order   INTEGER NOT NULL DEFAULT 1,
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    comment_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (group_id, question_id)
 );
 
 -- ----------------------------------------------------------
@@ -378,7 +612,8 @@ CREATE TABLE self_feedback (
     employee_id         TEXT NOT NULL REFERENCES employees(employee_id),
     cycle_id            UUID NOT NULL REFERENCES review_cycles(cycle_id),
     competency_ratings  JSONB NOT NULL DEFAULT '[]',
-    status              TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','SUBMITTED')),
+    status              TEXT NOT NULL DEFAULT 'DRAFT'
+                            CHECK (status IN ('DRAFT','SUBMITTED','NOT_SUBMITTED','MISSED')),
     submitted_at        TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -414,6 +649,7 @@ CREATE TABLE survey_assignments (
     assignment_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     employee_id   TEXT NOT NULL REFERENCES employees(employee_id),
     cycle_id      UUID NOT NULL REFERENCES review_cycles(cycle_id),
+    group_id      UUID REFERENCES cycle_groups(group_id),  -- which cycle group this employee belongs to
     status        TEXT NOT NULL DEFAULT 'PENDING'
                       CHECK (status IN ('PENDING','IN_PROGRESS','COMPLETED')),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -491,20 +727,27 @@ CREATE TABLE employee_mapping_uploads (
 --                          survey access via a direct link.
 -- ----------------------------------------------------------
 CREATE TABLE survey_reviewers (
-    reviewer_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    assignment_id        UUID NOT NULL REFERENCES survey_assignments(assignment_id),
-    reviewer_employee_id TEXT NOT NULL REFERENCES employees(employee_id),
-    reviewer_type        TEXT NOT NULL
-                             CHECK (reviewer_type IN
-                                 ('MANAGER','PEER','DIRECT_REPORT','INDIRECT_REPORT',
-                                  'CROSS_FUNCTIONAL','CXO')),
-    question_set         TEXT NOT NULL CHECK (question_set IN ('IC','TM','HOD')),
-    status               TEXT NOT NULL DEFAULT 'PENDING'
-                             CHECK (status IN ('PENDING','IN_PROGRESS','COMPLETED')),
-    access_token         UUID UNIQUE DEFAULT gen_random_uuid(),
-    reminded_at          TIMESTAMPTZ,
-    completed_at         TIMESTAMPTZ,
-    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    reviewer_id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    assignment_id          UUID NOT NULL REFERENCES survey_assignments(assignment_id),
+    reviewer_employee_id   TEXT NOT NULL REFERENCES employees(employee_id),
+    reviewer_type          TEXT NOT NULL,  -- key from reviewer_types (e.g. 'SELF','REPORTING_MANAGER','PEER','SUBORDINATE','CROSS_FUNCTIONAL','MANAGER_OF_MANAGER','DEPARTMENT_HEAD','BUSINESS_UNIT_HEAD','DOTTED_LINE_MANAGER','EXTERNAL','PROJECT_MANAGER', or custom)
+    question_set           TEXT NOT NULL CHECK (question_set IN ('IC','TM','HOD')),
+    status                 TEXT NOT NULL DEFAULT 'PENDING'
+                               CHECK (status IN ('PENDING','IN_PROGRESS','COMPLETED','NOT_SUBMITTED','MISSED')),
+    access_token           UUID UNIQUE DEFAULT gen_random_uuid(),
+    reminded_at            TIMESTAMPTZ,
+    completed_at           TIMESTAMPTZ,
+
+    -- Admin override: reopen form after closure (Section 6.2)
+    reopen_count           INTEGER NOT NULL DEFAULT 0,       -- max 2 reopens allowed
+    reopen_deadline        TIMESTAMPTZ,                      -- deadline for reopened form (max 14 days)
+
+    -- Admin override: fill on behalf (Section 6.1)
+    filled_on_behalf_by    TEXT REFERENCES employees(employee_id),
+    filled_on_behalf_reason TEXT,                             -- dropdown selection
+    filled_on_behalf_notes TEXT,                              -- additional notes
+
+    created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ----------------------------------------------------------
@@ -536,7 +779,7 @@ CREATE TABLE survey_responses (
     response_id  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     reviewer_id  UUID NOT NULL REFERENCES survey_reviewers(reviewer_id),
     question_id  TEXT NOT NULL REFERENCES questions(question_id),
-    rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 4),
+    rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 10),  -- supports configurable scales (2-10 options)
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (reviewer_id, question_id)
 );
@@ -567,6 +810,7 @@ CREATE TABLE survey_responses (
 CREATE TABLE survey_comments (
     comment_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     reviewer_id  UUID NOT NULL REFERENCES survey_reviewers(reviewer_id),
+    question_id  TEXT REFERENCES questions(question_id),  -- per-question comment (NULL = general comment)
     comment_text TEXT NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -611,9 +855,7 @@ CREATE TABLE calculated_scores (
     cycle_id                      UUID NOT NULL REFERENCES review_cycles(cycle_id),
     self_score                    NUMERIC(4,2),
     colleague_score               NUMERIC(4,2),
-    final_label                   TEXT CHECK (final_label IN
-                                      ('Outstanding Impact','Significant Impact',
-                                       'Moderate Impact','Not Enough Impact')),
+    final_label                   TEXT,          -- derived from rating scale labels (configurable per cycle)
     competency_scores             JSONB DEFAULT '{}',      -- {"COMM": 3.5, "TEAM": 4.0, ...}
     reviewer_category_scores      JSONB DEFAULT '{}',      -- {"MANAGER": 3.8, "PEER": 3.5, ...}
     reviewer_competency_breakdown JSONB DEFAULT '{}',      -- {"MANAGER": {"COMM": 3.5, "TEAM": 4.0}, "PEER": {...}}
@@ -794,8 +1036,7 @@ CREATE TABLE ad_sync_log (
 -- ============================================================
 -- PART 4 — FOREIGN KEY CONSTRAINTS (deferred for dependency resolution)
 -- ============================================================
-ALTER TABLE review_cycles ADD CONSTRAINT fk_review_cycles_template
-    FOREIGN KEY (template_id) REFERENCES question_templates(template_id);
+-- (review_cycles.template_id removed — templates now assigned per group via cycle_groups)
 
 
 -- ============================================================
@@ -817,7 +1058,9 @@ BEGIN
     FOREACH tbl IN ARRAY ARRAY[
         'employees','review_cycles','competencies','questions',
         'question_templates','self_feedback','survey_assignments',
-        'calculated_scores','notification_templates','reviewer_role_config'
+        'calculated_scores','notification_templates','reviewer_role_config',
+        'rating_scales','reviewer_types','reviewer_mapping_templates',
+        'cycle_groups'
     ]
     LOOP
         EXECUTE format(
@@ -841,9 +1084,18 @@ CREATE INDEX idx_employees_manager       ON employees(reporting_manager_id);
 CREATE INDEX idx_employees_active        ON employees(is_active);
 CREATE INDEX idx_employees_leadership    ON employees(leadership_level);
 
+-- Rating Scales
+CREATE INDEX idx_rating_scales_active    ON rating_scales(is_active);
+CREATE INDEX idx_rso_scale               ON rating_scale_options(scale_id);
+
 -- Review Cycles
 CREATE INDEX idx_cycles_status           ON review_cycles(status);
-CREATE INDEX idx_cycles_template         ON review_cycles(template_id);
+CREATE INDEX idx_cycles_rating_scale     ON review_cycles(rating_scale_id);
+CREATE INDEX idx_cycles_launch_date      ON review_cycles(launch_date);
+
+-- Competency Default Questions
+CREATE INDEX idx_cdq_competency          ON competency_default_questions(competency_id);
+CREATE INDEX idx_cdq_role_group          ON competency_default_questions(role_group);
 
 -- Questions and Templates
 CREATE INDEX idx_questions_set           ON questions(set_type);
@@ -851,6 +1103,27 @@ CREATE INDEX idx_questions_competency    ON questions(competency_id);
 CREATE INDEX idx_templates_active        ON question_templates(is_active);
 CREATE INDEX idx_template_questions_tid  ON template_questions(template_id);
 CREATE INDEX idx_template_questions_qid  ON template_questions(question_id);
+CREATE INDEX idx_tq_role_group           ON template_questions(role_group);
+
+-- Reviewer Types
+CREATE INDEX idx_rt_type_key             ON reviewer_types(type_key);
+CREATE INDEX idx_rt_category             ON reviewer_types(category);
+CREATE INDEX idx_rt_active               ON reviewer_types(is_active);
+
+-- Cycle Reviewer Type Config
+CREATE INDEX idx_crtc_cycle              ON cycle_reviewer_type_config(cycle_id);
+CREATE INDEX idx_crtc_reviewer_type      ON cycle_reviewer_type_config(reviewer_type_id);
+CREATE INDEX idx_crtc_role_group         ON cycle_reviewer_type_config(role_group);
+
+-- Reviewer Mapping Templates
+CREATE INDEX idx_rmt_active              ON reviewer_mapping_templates(is_active);
+CREATE INDEX idx_rmte_template           ON reviewer_mapping_template_entries(template_id);
+CREATE INDEX idx_rmte_employee           ON reviewer_mapping_template_entries(employee_id);
+
+-- Cycle Groups
+CREATE INDEX idx_cg_cycle                ON cycle_groups(cycle_id);
+CREATE INDEX idx_cgo_group               ON cycle_group_owners(group_id);
+CREATE INDEX idx_ctq_group               ON cycle_template_questions(group_id);
 
 -- Self Feedback
 CREATE INDEX idx_sf_employee_cycle       ON self_feedback(employee_id, cycle_id);
@@ -859,6 +1132,7 @@ CREATE INDEX idx_sf_status               ON self_feedback(status);
 -- Survey Assignments
 CREATE INDEX idx_sa_employee_cycle       ON survey_assignments(employee_id, cycle_id);
 CREATE INDEX idx_sa_status               ON survey_assignments(status);
+CREATE INDEX idx_sa_group                ON survey_assignments(group_id);
 
 -- Survey Reviewers (includes reverse lookup optimization)
 CREATE INDEX idx_sr_assignment           ON survey_reviewers(assignment_id);
@@ -866,10 +1140,15 @@ CREATE INDEX idx_sr_reviewer_emp         ON survey_reviewers(reviewer_employee_i
 CREATE INDEX idx_sr_reviewer_type        ON survey_reviewers(reviewer_type);
 CREATE INDEX idx_sr_status               ON survey_reviewers(status);
 CREATE INDEX idx_sr_completed            ON survey_reviewers(completed_at) WHERE completed_at IS NOT NULL;
+CREATE INDEX idx_sr_reopen_deadline      ON survey_reviewers(reopen_deadline) WHERE reopen_deadline IS NOT NULL;
 
 -- Survey Responses
 CREATE INDEX idx_resp_reviewer           ON survey_responses(reviewer_id);
 CREATE INDEX idx_resp_question           ON survey_responses(question_id);
+
+-- Survey Comments
+CREATE INDEX idx_sc_reviewer             ON survey_comments(reviewer_id);
+CREATE INDEX idx_sc_question             ON survey_comments(question_id) WHERE question_id IS NOT NULL;
 
 -- Calculated Scores
 CREATE INDEX idx_scores_employee_cycle   ON calculated_scores(employee_id, cycle_id);
@@ -878,7 +1157,7 @@ CREATE INDEX idx_scores_employee_cycle   ON calculated_scores(employee_id, cycle
 CREATE INDEX idx_notif_log_recipient     ON notification_log(recipient_id);
 CREATE INDEX idx_notif_log_status        ON notification_log(status);
 
--- Reviewer Role Config
+-- Reviewer Role Config (legacy)
 CREATE INDEX idx_rrc_cycle               ON reviewer_role_config(cycle_id);
 CREATE INDEX idx_rrc_role                ON reviewer_role_config(role);
 
@@ -894,15 +1173,63 @@ CREATE INDEX idx_audit_entity            ON audit_log(entity_type, entity_id);
 -- ============================================================
 -- PART 7 — COMMENTS AND DOCUMENTATION
 -- ============================================================
-COMMENT ON TABLE question_templates IS 'Reusable question set templates that can be assigned to review cycles';
-COMMENT ON TABLE template_questions IS 'Junction table mapping questions to templates';
+COMMENT ON TABLE rating_scales IS 'Master catalogue of rating scales (2-10 options each); one scale per template/cycle';
+COMMENT ON TABLE rating_scale_options IS 'Individual options within a rating scale (value, label, color)';
+COMMENT ON TABLE question_templates IS 'Reusable question set templates that can be assigned to cycle groups';
+COMMENT ON TABLE template_questions IS 'Junction table mapping questions to templates, scoped by role_group with display_order and comment toggle';
+COMMENT ON TABLE competency_default_questions IS 'Default questions per competency per role group for auto-population in templates';
+COMMENT ON TABLE reviewer_types IS 'Master catalogue of reviewer types (built-in + admin-created custom types)';
+COMMENT ON TABLE cycle_reviewer_type_config IS 'Per-cycle, per-reviewer-type, per-role-group min/max reviewer count config';
+COMMENT ON TABLE reviewer_mapping_templates IS 'Reusable snapshots of employee-to-reviewer assignments for import into cycles';
+COMMENT ON TABLE reviewer_mapping_template_entries IS 'Individual entries in a reviewer mapping template';
+COMMENT ON TABLE cycle_groups IS 'Groups within a cycle (IC/TM/HOD/custom); each gets its own question template';
+COMMENT ON TABLE cycle_group_owners IS 'Admin(s) responsible for managing a cycle group';
+COMMENT ON TABLE cycle_template_questions IS 'Per-cycle-group question snapshot; customizable without affecting master template';
 COMMENT ON COLUMN employees.leadership_level IS '1=CXO, 2=HOD, 3=TM, 4=IC - for org hierarchy queries';
 COMMENT ON COLUMN employees.org_path IS 'Materialized path from organization root to this employee';
-COMMENT ON COLUMN review_cycles.template_id IS 'Question template used for this cycle (locked on creation)';
+COMMENT ON COLUMN review_cycles.visibility_config IS 'JSONB: 3-phase visibility rules (while_filling, after_filling, after_publishing)';
+COMMENT ON COLUMN review_cycles.wizard_progress IS 'JSONB tracking which wizard steps are complete for draft cycles';
+COMMENT ON COLUMN review_cycles.rating_scale_id IS 'One rating scale applies to all questions across all groups in this cycle';
 COMMENT ON COLUMN calculated_scores.reviewer_competency_breakdown IS 'Detailed scores: reviewer_type -> competency -> avg_score for granular analysis';
-COMMENT ON TABLE reviewer_role_config IS 'Per-cycle, per-role reviewer count config (min, max, selected fixed count)';
-COMMENT ON COLUMN reviewer_role_config.selected_count IS 'Exact number of reviewers each employee of this role must have in the cycle';
-COMMENT ON COLUMN review_cycles.employee_join_date_before IS 'Filter: only include employees who joined on or before this date';
+COMMENT ON TABLE reviewer_role_config IS 'DEPRECATED: Legacy per-cycle, per-role reviewer count config. Use cycle_reviewer_type_config instead.';
+COMMENT ON TABLE reviewer_config IS 'DEPRECATED: Legacy global min/max reviewer config. Use cycle_reviewer_type_config instead.';
 COMMENT ON COLUMN question_templates.cloned_from IS 'Source template UUID if this template was cloned from another';
 COMMENT ON COLUMN question_templates.source_file_url IS 'URL/path of uploaded file used to create this template';
 COMMENT ON TABLE employee_mapping_uploads IS 'Tracks CSV uploads for bulk employee-reviewer mapping per cycle';
+COMMENT ON COLUMN survey_reviewers.reopen_count IS 'Max 2 reopens per reviewer; after that admin must use Fill on Behalf';
+COMMENT ON COLUMN survey_reviewers.filled_on_behalf_by IS 'Admin who filled the survey on behalf of this reviewer';
+COMMENT ON COLUMN survey_assignments.group_id IS 'Cycle group this employee belongs to (IC/TM/HOD/custom)';
+COMMENT ON COLUMN survey_comments.question_id IS 'Per-question comment; NULL means a general comment for the entire review';
+
+
+-- ============================================================
+-- PART 8 — SEED DATA (default rating scale & built-in reviewer types)
+-- ============================================================
+
+-- Default 4-point impact rating scale (from PRD)
+INSERT INTO rating_scales (scale_id, scale_name, is_default, is_active)
+VALUES ('00000000-0000-0000-0000-000000000001', 'Standard 4-Point Impact Scale', TRUE, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO rating_scale_options (scale_id, value, label, description, color, display_order) VALUES
+    ('00000000-0000-0000-0000-000000000001', 4, 'Outstanding Impact',  'Consistently exceeds expectations', '#22C55E', 1),
+    ('00000000-0000-0000-0000-000000000001', 3, 'Significant Impact',  'Frequently exceeds expectations',   '#3B82F6', 2),
+    ('00000000-0000-0000-0000-000000000001', 2, 'Moderate Impact',     'Meets expectations',                '#F59E0B', 3),
+    ('00000000-0000-0000-0000-000000000001', 1, 'Not Enough Impact',   'Below expectations',                '#EF4444', 4)
+ON CONFLICT DO NOTHING;
+
+-- Built-in reviewer types (from design doc Section 4.4.1)
+INSERT INTO reviewer_types (type_key, type_name, description, category, is_system) VALUES
+    ('SELF',                'Self',                  'Employee reviews themselves (self-feedback)',                 'ALWAYS_INCLUDED', TRUE),
+    ('REPORTING_MANAGER',   'Reporting Manager',     'Direct reporting manager reviews the employee',              'ALWAYS_INCLUDED', TRUE),
+    ('MANAGER_OF_MANAGER',  'Manager of Manager',    'The reporting manager''s manager',                           'MANAGERS',        TRUE),
+    ('DEPARTMENT_HEAD',     'Department Head',       'Head of the employee''s department',                         'MANAGERS',        TRUE),
+    ('BUSINESS_UNIT_HEAD',  'Business Unit Head',    'Head of the business unit',                                  'MANAGERS',        TRUE),
+    ('DOTTED_LINE_MANAGER', 'Dotted Line Manager',   'Secondary/matrix reporting manager',                         'MANAGERS',        TRUE),
+    ('PEER',                'Peers',                 'Same-level colleagues in the same department',               'NOMINATED',       TRUE),
+    ('EXTERNAL',            'External',              'Reviewers from outside the organization (e.g., clients)',    'NOMINATED',       TRUE),
+    ('SUBORDINATE',         'Subordinates',          'Employees who report to the person being reviewed',          'NOMINATED',       TRUE),
+    ('PROJECT_MANAGER',     'Project Manager',       'Manager of a project the employee works on',                 'NOMINATED',       TRUE),
+    ('CROSS_FUNCTIONAL',    'Cross-Functional Peer', 'Peers from different departments',                           'CUSTOM',          TRUE),
+    ('INDIRECT_REPORT',     'Indirect Reportees',    'Employees who report to the person''s direct reports',       'CUSTOM',          TRUE)
+ON CONFLICT DO NOTHING;

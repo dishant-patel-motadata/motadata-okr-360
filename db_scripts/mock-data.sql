@@ -301,34 +301,37 @@ ON CONFLICT DO NOTHING;
 -- ============================================================
 
 -- Template 1: Standard Full Set (all 46 questions)
-INSERT INTO question_templates (template_id, template_name, description, created_by)
+INSERT INTO question_templates (template_id, template_name, description, rating_scale_id, created_by)
 VALUES
 (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID,
     'Standard Full Set (46 Questions)',
     'Complete question set covering all competencies for IC, TM, and HOD levels',
+    '00000000-0000-0000-0000-000000000001'::UUID,
     'EMP001'
 )
 ON CONFLICT (template_id) DO NOTHING;
 
 -- Template 2: Simplified Set (30 questions - top 10 per level)
-INSERT INTO question_templates (template_id, template_name, description, created_by)
+INSERT INTO question_templates (template_id, template_name, description, rating_scale_id, created_by)
 VALUES
 (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID,
     'Simplified Set (30 Questions)',
     'Condensed question set focusing on core competencies - 10 IC, 10 TM, 10 HOD',
+    '00000000-0000-0000-0000-000000000001'::UUID,
     'EMP001'
 )
 ON CONFLICT (template_id) DO NOTHING;
 
 -- Template 3: Leadership Focus (TM + HOD only)
-INSERT INTO question_templates (template_id, template_name, description, created_by)
+INSERT INTO question_templates (template_id, template_name, description, rating_scale_id, created_by)
 VALUES
 (
     'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID,
     'Leadership Focus (TM/HOD)',
     'Leadership-focused template for TM and HOD levels only (31 questions)',
+    '00000000-0000-0000-0000-000000000001'::UUID,
     'EMP001'
 )
 ON CONFLICT (template_id) DO NOTHING;
@@ -339,60 +342,60 @@ ON CONFLICT (template_id) DO NOTHING;
 -- ============================================================
 
 -- Template 1: All IC questions
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'IC'
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 -- Template 1: All TM questions
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'TM'
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 -- Template 1: All HOD questions
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'HOD'
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 -- Template 2: Simplified IC set (first 10 IC questions)
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'IC' AND order_number <= 10
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 -- Template 2: Simplified TM set (first 10 TM questions)
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'TM' AND order_number <= 10
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 -- Template 2: Simplified HOD set (first 10 HOD questions)
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'HOD' AND order_number <= 10
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 -- Template 3: All TM questions
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'TM'
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 -- Template 3: All HOD questions
-INSERT INTO template_questions (template_id, question_id)
-SELECT 'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID, question_id
+INSERT INTO template_questions (template_id, question_id, role_group, display_order)
+SELECT 'cccccccc-cccc-cccc-cccc-cccccccccccc'::UUID, question_id, set_type, order_number
 FROM   questions
 WHERE  set_type = 'HOD'
-ON CONFLICT (template_id, question_id) DO NOTHING;
+ON CONFLICT (template_id, question_id, role_group) DO NOTHING;
 
 
 -- ============================================================
@@ -443,48 +446,87 @@ ON CONFLICT (template_id) DO NOTHING;
 -- PART 5 — MOCK DATA: REVIEW CYCLES (3 cycles)
 -- ============================================================
 
--- Cycle 1: H1 2025 — PUBLISHED (using Standard Full Set template)
+-- Cycle 1: H1 2025 — PUBLISHED (used Standard Full Set template)
 INSERT INTO review_cycles
-    (cycle_id, cycle_name, start_date, end_date, duration_months,
-     grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, template_id, employee_join_date_before, created_by)
+    (cycle_id, cycle_name, description, review_type, frequency, status,
+     launch_date, exclude_weekly_offs, weekly_off_days,
+     form_submission_days, publish_review_days, auto_advance_form_submission,
+     form_start_date, form_end_date, publish_start_date, publish_end_date,
+     enable_self_feedback, enable_colleague_feedback,
+     enable_reminders, reminder_days_before_deadline,
+     visibility_config, rating_scale_id, enable_comments,
+     wizard_progress, created_by)
 VALUES
 (
     '11111111-1111-1111-1111-111111111111'::UUID,
     'H1 2025 — 360 Review',
-    '2025-01-06', '2025-06-30', 6,
-    3, 'PUBLISHED', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, '2024-12-31', 'EMP001'
+    'First half 2025 comprehensive 360 feedback cycle for all employees.',
+    'SAME_TIME_FOR_ALL', 'ONE_TIME', 'PUBLISHED',
+    '2025-01-06', FALSE, '["Saturday","Sunday"]'::JSONB,
+    150, 14, FALSE,
+    '2025-01-06', '2025-06-05', '2025-06-06', '2025-06-20',
+    TRUE, TRUE,
+    TRUE, '[7,3,1]'::JSONB,
+    '{"while_filling":{"show_scores":false},"after_filling":{"show_scores":false},"after_publishing":{"show_scores":true,"show_comments":true}}'::JSONB,
+    '00000000-0000-0000-0000-000000000001'::UUID, TRUE,
+    '{"step1":true,"step2":true,"step3":true,"step4":true,"step5":true,"step6":true}'::JSONB,
+    'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
--- Cycle 2: H2 2025 — PUBLISHED (using Standard Full Set template)
+-- Cycle 2: H2 2025 — PUBLISHED (used Standard Full Set template)
 INSERT INTO review_cycles
-    (cycle_id, cycle_name, start_date, end_date, duration_months,
-     grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, template_id, employee_join_date_before, created_by)
+    (cycle_id, cycle_name, description, review_type, frequency, status,
+     launch_date, exclude_weekly_offs, weekly_off_days,
+     form_submission_days, publish_review_days, auto_advance_form_submission,
+     form_start_date, form_end_date, publish_start_date, publish_end_date,
+     enable_self_feedback, enable_colleague_feedback,
+     enable_reminders, reminder_days_before_deadline,
+     visibility_config, rating_scale_id, enable_comments,
+     wizard_progress, created_by)
 VALUES
 (
     '22222222-2222-2222-2222-222222222222'::UUID,
     'H2 2025 — 360 Review',
-    '2025-07-07', '2025-12-31', 6,
-    3, 'PUBLISHED', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, '2025-06-30', 'EMP001'
+    'Second half 2025 comprehensive 360 feedback cycle for all employees.',
+    'SAME_TIME_FOR_ALL', 'ONE_TIME', 'PUBLISHED',
+    '2025-07-07', FALSE, '["Saturday","Sunday"]'::JSONB,
+    150, 14, FALSE,
+    '2025-07-07', '2025-12-04', '2025-12-05', '2025-12-19',
+    TRUE, TRUE,
+    TRUE, '[7,3,1]'::JSONB,
+    '{"while_filling":{"show_scores":false},"after_filling":{"show_scores":false},"after_publishing":{"show_scores":true,"show_comments":true}}'::JSONB,
+    '00000000-0000-0000-0000-000000000001'::UUID, TRUE,
+    '{"step1":true,"step2":true,"step3":true,"step4":true,"step5":true,"step6":true}'::JSONB,
+    'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
--- Cycle 3: H1 2026 — ACTIVE (current) (using Simplified Set template)
+-- Cycle 3: H1 2026 — FORM_ACTIVE (current, forms open) (using Simplified Set template)
 INSERT INTO review_cycles
-    (cycle_id, cycle_name, start_date, end_date, duration_months,
-     grace_period_days, status, enable_self_feedback, enable_colleague_feedback,
-     reminder_schedule, template_id, employee_join_date_before, created_by)
+    (cycle_id, cycle_name, description, review_type, frequency, status,
+     launch_date, exclude_weekly_offs, weekly_off_days,
+     form_submission_days, publish_review_days, auto_advance_form_submission,
+     form_start_date, form_end_date, publish_start_date, publish_end_date,
+     enable_self_feedback, enable_colleague_feedback,
+     enable_reminders, reminder_days_before_deadline,
+     visibility_config, rating_scale_id, enable_comments,
+     wizard_progress, created_by)
 VALUES
 (
     '33333333-3333-3333-3333-333333333333'::UUID,
     'H1 2026 — 360 Review',
-    '2026-02-02', '2026-06-30', 6,
-    3, 'ACTIVE', TRUE, TRUE,
-    '[7,3,1]'::JSONB, 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, '2025-12-31', 'EMP001'
+    'First half 2026 feedback cycle using simplified question set.',
+    'SAME_TIME_FOR_ALL', 'ONE_TIME', 'FORM_ACTIVE',
+    '2026-02-02', TRUE, '["Saturday","Sunday"]'::JSONB,
+    120, 14, TRUE,
+    '2026-02-02', '2026-06-02', NULL, NULL,
+    TRUE, TRUE,
+    TRUE, '[7,3,1]'::JSONB,
+    '{"while_filling":{"show_scores":false},"after_filling":{"show_scores":false},"after_publishing":{"show_scores":true,"show_comments":true}}'::JSONB,
+    '00000000-0000-0000-0000-000000000001'::UUID, TRUE,
+    '{"step1":true,"step2":true,"step3":true,"step4":true,"step5":true,"step6":true}'::JSONB,
+    'EMP001'
 )
 ON CONFLICT (cycle_id) DO NOTHING;
 
@@ -523,7 +565,195 @@ ON CONFLICT (cycle_id, role) DO NOTHING;
 
 
 -- ============================================================
--- PART 5B — SEED DATA: EMPLOYEE MAPPING UPLOADS
+-- PART 5B — SEED DATA: CYCLE GROUPS
+--   Each cycle has IC, TM, HOD groups linked to question templates.
+--   Cycle 1 & 2 use Standard Full Set; Cycle 3 uses Simplified Set.
+-- ============================================================
+
+-- Cycle 1 (H1 2025 — PUBLISHED) groups
+INSERT INTO cycle_groups (group_id, cycle_id, group_name, question_template_id, display_order)
+VALUES
+    ('a1000001-0001-0001-0001-000000000001'::UUID, '11111111-1111-1111-1111-111111111111'::UUID, 'IC',  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 1),
+    ('a1000001-0001-0001-0001-000000000002'::UUID, '11111111-1111-1111-1111-111111111111'::UUID, 'TM',  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 2),
+    ('a1000001-0001-0001-0001-000000000003'::UUID, '11111111-1111-1111-1111-111111111111'::UUID, 'HOD', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 3)
+ON CONFLICT (cycle_id, group_name) DO NOTHING;
+
+-- Cycle 2 (H2 2025 — PUBLISHED) groups
+INSERT INTO cycle_groups (group_id, cycle_id, group_name, question_template_id, display_order)
+VALUES
+    ('a2000002-0002-0002-0002-000000000001'::UUID, '22222222-2222-2222-2222-222222222222'::UUID, 'IC',  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 1),
+    ('a2000002-0002-0002-0002-000000000002'::UUID, '22222222-2222-2222-2222-222222222222'::UUID, 'TM',  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 2),
+    ('a2000002-0002-0002-0002-000000000003'::UUID, '22222222-2222-2222-2222-222222222222'::UUID, 'HOD', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::UUID, 3)
+ON CONFLICT (cycle_id, group_name) DO NOTHING;
+
+-- Cycle 3 (H1 2026 — FORM_ACTIVE) groups — uses Simplified Set
+INSERT INTO cycle_groups (group_id, cycle_id, group_name, question_template_id, display_order)
+VALUES
+    ('a3000003-0003-0003-0003-000000000001'::UUID, '33333333-3333-3333-3333-333333333333'::UUID, 'IC',  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, 1),
+    ('a3000003-0003-0003-0003-000000000002'::UUID, '33333333-3333-3333-3333-333333333333'::UUID, 'TM',  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, 2),
+    ('a3000003-0003-0003-0003-000000000003'::UUID, '33333333-3333-3333-3333-333333333333'::UUID, 'HOD', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::UUID, 3)
+ON CONFLICT (cycle_id, group_name) DO NOTHING;
+
+
+-- ============================================================
+-- PART 5C — SEED DATA: CYCLE GROUP OWNERS
+--   Assign EMP005 (HR HOD) as group owner for all cycle groups.
+-- ============================================================
+INSERT INTO cycle_group_owners (group_id, employee_id)
+VALUES
+    ('a1000001-0001-0001-0001-000000000001'::UUID, 'EMP005'),
+    ('a1000001-0001-0001-0001-000000000002'::UUID, 'EMP005'),
+    ('a1000001-0001-0001-0001-000000000003'::UUID, 'EMP005'),
+    ('a2000002-0002-0002-0002-000000000001'::UUID, 'EMP005'),
+    ('a2000002-0002-0002-0002-000000000002'::UUID, 'EMP005'),
+    ('a2000002-0002-0002-0002-000000000003'::UUID, 'EMP005'),
+    ('a3000003-0003-0003-0003-000000000001'::UUID, 'EMP005'),
+    ('a3000003-0003-0003-0003-000000000002'::UUID, 'EMP005'),
+    ('a3000003-0003-0003-0003-000000000003'::UUID, 'EMP005')
+ON CONFLICT (group_id, employee_id) DO NOTHING;
+
+
+-- ============================================================
+-- PART 5D — SEED DATA: CYCLE TEMPLATE QUESTIONS
+--   Snapshot of questions copied from templates into cycle groups.
+--   For each group, copy relevant questions from linked template.
+-- ============================================================
+
+-- Cycle 1 IC group — all IC questions from Standard Full Set
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a1000001-0001-0001-0001-000000000001'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'IC'
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+-- Cycle 1 TM group — all TM questions
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a1000001-0001-0001-0001-000000000002'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'TM'
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+-- Cycle 1 HOD group — all HOD questions
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a1000001-0001-0001-0001-000000000003'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'HOD'
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+-- Cycle 2 — same as Cycle 1 (Standard Full Set)
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a2000002-0002-0002-0002-000000000001'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'IC'
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a2000002-0002-0002-0002-000000000002'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'TM'
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a2000002-0002-0002-0002-000000000003'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'HOD'
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+-- Cycle 3 — Simplified Set (first 10 per type)
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a3000003-0003-0003-0003-000000000001'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'IC' AND order_number <= 10
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a3000003-0003-0003-0003-000000000002'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'TM' AND order_number <= 10
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+INSERT INTO cycle_template_questions (group_id, question_id, display_order, is_active, comment_enabled)
+SELECT 'a3000003-0003-0003-0003-000000000003'::UUID, question_id, order_number, TRUE, TRUE
+FROM   questions WHERE set_type = 'HOD' AND order_number <= 10
+ON CONFLICT (group_id, question_id) DO NOTHING;
+
+
+-- ============================================================
+-- PART 5E — SEED DATA: CYCLE REVIEWER TYPE CONFIG
+--   Per-cycle, per-reviewer-type, per-role-group min/max counts.
+--   References reviewer_types seeded in 02-database-setup.sql.
+-- ============================================================
+
+-- Helper: insert config using type_key lookup
+DO $$
+DECLARE
+    rt_self UUID;
+    rt_rm   UUID;
+    rt_peer UUID;
+    rt_sub  UUID;
+    rt_cf   UUID;
+    rt_dh   UUID;
+BEGIN
+    SELECT reviewer_type_id INTO rt_self FROM reviewer_types WHERE type_key = 'SELF';
+    SELECT reviewer_type_id INTO rt_rm   FROM reviewer_types WHERE type_key = 'REPORTING_MANAGER';
+    SELECT reviewer_type_id INTO rt_peer FROM reviewer_types WHERE type_key = 'PEER';
+    SELECT reviewer_type_id INTO rt_sub  FROM reviewer_types WHERE type_key = 'SUBORDINATE';
+    SELECT reviewer_type_id INTO rt_cf   FROM reviewer_types WHERE type_key = 'CROSS_FUNCTIONAL';
+    SELECT reviewer_type_id INTO rt_dh   FROM reviewer_types WHERE type_key = 'DEPARTMENT_HEAD';
+
+    -- ── Cycle 1 (H1 2025) ────────────────────────────────────
+    INSERT INTO cycle_reviewer_type_config (cycle_id, reviewer_type_id, role_group, min_reviewers, max_reviewers) VALUES
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_self, 'IC',  1, 1),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_self, 'TM',  1, 1),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_self, 'HOD', 1, 1),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_rm,   'IC',  1, 1),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_rm,   'TM',  1, 1),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_rm,   'HOD', 1, 1),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_peer, 'IC',  2, 5),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_peer, 'TM',  2, 4),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_peer, 'HOD', 2, 4),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_sub,  'TM',  1, 3),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_sub,  'HOD', 1, 3),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_cf,   'IC',  1, 2),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_cf,   'TM',  1, 2),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_cf,   'HOD', 1, 2),
+        ('11111111-1111-1111-1111-111111111111'::UUID, rt_dh,   'HOD', 0, 1)
+    ON CONFLICT (cycle_id, reviewer_type_id, role_group) DO NOTHING;
+
+    -- ── Cycle 2 (H2 2025) — same config as Cycle 1 ──────────
+    INSERT INTO cycle_reviewer_type_config (cycle_id, reviewer_type_id, role_group, min_reviewers, max_reviewers) VALUES
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_self, 'IC',  1, 1),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_self, 'TM',  1, 1),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_self, 'HOD', 1, 1),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_rm,   'IC',  1, 1),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_rm,   'TM',  1, 1),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_rm,   'HOD', 1, 1),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_peer, 'IC',  2, 5),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_peer, 'TM',  2, 4),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_peer, 'HOD', 2, 4),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_sub,  'TM',  1, 3),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_sub,  'HOD', 1, 3),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_cf,   'IC',  1, 2),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_cf,   'TM',  1, 2),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_cf,   'HOD', 1, 2),
+        ('22222222-2222-2222-2222-222222222222'::UUID, rt_dh,   'HOD', 0, 1)
+    ON CONFLICT (cycle_id, reviewer_type_id, role_group) DO NOTHING;
+
+    -- ── Cycle 3 (H1 2026) — slightly different limits ───────
+    INSERT INTO cycle_reviewer_type_config (cycle_id, reviewer_type_id, role_group, min_reviewers, max_reviewers) VALUES
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_self, 'IC',  1, 1),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_self, 'TM',  1, 1),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_self, 'HOD', 1, 1),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_rm,   'IC',  1, 1),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_rm,   'TM',  1, 1),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_rm,   'HOD', 1, 1),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_peer, 'IC',  2, 6),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_peer, 'TM',  2, 5),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_peer, 'HOD', 2, 5),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_sub,  'TM',  1, 4),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_sub,  'HOD', 1, 4),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_cf,   'IC',  1, 3),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_cf,   'TM',  1, 3),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_cf,   'HOD', 1, 3),
+        ('33333333-3333-3333-3333-333333333333'::UUID, rt_dh,   'HOD', 0, 1)
+    ON CONFLICT (cycle_id, reviewer_type_id, role_group) DO NOTHING;
+END $$;
+
+
+-- ============================================================
+-- PART 5F — SEED DATA: EMPLOYEE MAPPING UPLOADS
 --   Sample CSV upload records for tracking.
 -- ============================================================
 INSERT INTO employee_mapping_uploads
@@ -623,11 +853,11 @@ ON CONFLICT (employee_id, cycle_id) DO NOTHING;
 -- PART 7 — MOCK DATA: SURVEY REVIEWERS
 --   • For the two PUBLISHED cycles (H1 2025, H2 2025):
 --     assign reviewers for ALL employees (COMPLETED).
---   • For the ACTIVE cycle (H1 2026):
+--   • For the FORM_ACTIVE cycle (H1 2026):
 --     assign reviewers for all employees, with mixed statuses.
 --
 --   Reviewer composition per employee:
---     1 MANAGER (reporting_manager_id)
+--     1 REPORTING_MANAGER (reporting_manager_id)
 --     4 PEERs   (same dept ICs, or same-dept TMs for HOD/TM)
 --     1 CROSS_FUNCTIONAL (IC from a different dept)
 --   CXO employees get PEER reviewers from within the CXO group.
@@ -650,7 +880,7 @@ BEGIN
     FOR cycle_rec IN
         SELECT cycle_id, status
         FROM   review_cycles
-        ORDER BY start_date
+        ORDER BY launch_date
     LOOP
         FOR emp_rec IN
             SELECT e.employee_id, e.group_name, e.reporting_manager_id, e.department
@@ -676,11 +906,11 @@ BEGIN
                 CONTINUE;
             END IF;
 
-            -- ── Manager reviewer ─────────────────────────────────
+            -- ── Reporting Manager reviewer ─────────────────────────────────
             mgr_id := emp_rec.reporting_manager_id;
             IF mgr_id IS NOT NULL THEN
                 rev_status := CASE
-                    WHEN cycle_rec.status IN ('PUBLISHED','COMPLETED') THEN 'COMPLETED'
+                    WHEN cycle_rec.status = 'PUBLISHED' THEN 'COMPLETED'
                     WHEN emp_rec.employee_id IN ('EMP006','EMP007','EMP008','EMP009','EMP010') THEN 'COMPLETED'
                     WHEN emp_rec.group_name IN ('HOD','CXO') THEN 'IN_PROGRESS'
                     ELSE 'PENDING'
@@ -690,9 +920,9 @@ BEGIN
                     (assignment_id, reviewer_employee_id, reviewer_type, question_set,
                      status, reminded_at, completed_at)
                 VALUES (
-                    sa_id, mgr_id, 'MANAGER', q_set,
+                    sa_id, mgr_id, 'REPORTING_MANAGER', q_set,
                     rev_status,
-                    CASE WHEN cycle_rec.status = 'ACTIVE' THEN NOW() - INTERVAL '7 days' ELSE NULL END,
+                    CASE WHEN cycle_rec.status = 'FORM_ACTIVE' THEN NOW() - INTERVAL '7 days' ELSE NULL END,
                     CASE WHEN rev_status = 'COMPLETED'
                          THEN CASE
                              WHEN cycle_rec.cycle_id = '11111111-1111-1111-1111-111111111111'::UUID
@@ -726,7 +956,7 @@ BEGIN
                 LIMIT 4
             LOOP
                 rev_status := CASE
-                    WHEN cycle_rec.status IN ('PUBLISHED','COMPLETED') THEN 'COMPLETED'
+                    WHEN cycle_rec.status = 'PUBLISHED' THEN 'COMPLETED'
                     WHEN emp_rec.employee_id IN ('EMP006','EMP007','EMP008') THEN 'COMPLETED'
                     WHEN emp_rec.group_name IN ('HOD','CXO') THEN 'IN_PROGRESS'
                     ELSE 'PENDING'
@@ -738,7 +968,7 @@ BEGIN
                 VALUES (
                     sa_id, rev_id, 'PEER', q_set,
                     rev_status,
-                    CASE WHEN cycle_rec.status = 'ACTIVE' THEN NOW() - INTERVAL '5 days' ELSE NULL END,
+                    CASE WHEN cycle_rec.status = 'FORM_ACTIVE' THEN NOW() - INTERVAL '5 days' ELSE NULL END,
                     CASE WHEN rev_status = 'COMPLETED'
                          THEN CASE
                              WHEN cycle_rec.cycle_id = '11111111-1111-1111-1111-111111111111'::UUID
@@ -764,7 +994,7 @@ BEGIN
 
             IF cf_id IS NOT NULL THEN
                 rev_status := CASE
-                    WHEN cycle_rec.status IN ('PUBLISHED','COMPLETED') THEN 'COMPLETED'
+                    WHEN cycle_rec.status = 'PUBLISHED' THEN 'COMPLETED'
                     WHEN emp_rec.group_name IN ('HOD','CXO') THEN 'IN_PROGRESS'
                     ELSE 'PENDING'
                 END;
@@ -775,7 +1005,7 @@ BEGIN
                 VALUES (
                     sa_id, cf_id, 'CROSS_FUNCTIONAL', q_set,
                     rev_status,
-                    CASE WHEN cycle_rec.status = 'ACTIVE' THEN NOW() - INTERVAL '3 days' ELSE NULL END,
+                    CASE WHEN cycle_rec.status = 'FORM_ACTIVE' THEN NOW() - INTERVAL '3 days' ELSE NULL END,
                     CASE WHEN rev_status = 'COMPLETED'
                          THEN CASE
                              WHEN cycle_rec.cycle_id = '11111111-1111-1111-1111-111111111111'::UUID
@@ -789,7 +1019,7 @@ BEGIN
                 ON CONFLICT DO NOTHING;
             END IF;
 
-            -- ── DIRECT_REPORT reviewers for TMs (first 2 ICs that report to them) ─
+            -- ── SUBORDINATE reviewers for TMs (first 2 ICs that report to them) ─
             IF emp_rec.group_name = 'TM' THEN
                 FOR rev_id IN
                     SELECT e4.employee_id
@@ -801,7 +1031,7 @@ BEGIN
                     LIMIT 2
                 LOOP
                     rev_status := CASE
-                        WHEN cycle_rec.status IN ('PUBLISHED','COMPLETED') THEN 'COMPLETED'
+                        WHEN cycle_rec.status = 'PUBLISHED' THEN 'COMPLETED'
                         ELSE 'PENDING'
                     END;
 
@@ -809,9 +1039,9 @@ BEGIN
                         (assignment_id, reviewer_employee_id, reviewer_type, question_set,
                          status, reminded_at, completed_at)
                     VALUES (
-                        sa_id, rev_id, 'DIRECT_REPORT', q_set,
+                        sa_id, rev_id, 'SUBORDINATE', q_set,
                         rev_status,
-                        CASE WHEN cycle_rec.status = 'ACTIVE' THEN NOW() - INTERVAL '7 days' ELSE NULL END,
+                        CASE WHEN cycle_rec.status = 'FORM_ACTIVE' THEN NOW() - INTERVAL '7 days' ELSE NULL END,
                         CASE WHEN rev_status = 'COMPLETED'
                              THEN CASE
                                  WHEN cycle_rec.cycle_id = '11111111-1111-1111-1111-111111111111'::UUID
@@ -826,7 +1056,7 @@ BEGIN
                 END LOOP;
             END IF;
 
-            -- ── CXO reviewer for HODs (CXO who oversees their department) ─
+            -- ── Department Head reviewer for HODs (CXO who oversees their department) ─
             IF emp_rec.group_name = 'HOD' THEN
                 SELECT e5.employee_id INTO rev_id
                 FROM   employees e5
@@ -839,7 +1069,7 @@ BEGIN
 
                 IF rev_id IS NOT NULL THEN
                     rev_status := CASE
-                        WHEN cycle_rec.status IN ('PUBLISHED','COMPLETED') THEN 'COMPLETED'
+                        WHEN cycle_rec.status = 'PUBLISHED' THEN 'COMPLETED'
                         ELSE 'IN_PROGRESS'
                     END;
 
@@ -847,9 +1077,9 @@ BEGIN
                         (assignment_id, reviewer_employee_id, reviewer_type, question_set,
                          status, reminded_at, completed_at)
                     VALUES (
-                        sa_id, rev_id, 'CXO', q_set,
+                        sa_id, rev_id, 'DEPARTMENT_HEAD', q_set,
                         rev_status,
-                        CASE WHEN cycle_rec.status = 'ACTIVE' THEN NOW() - INTERVAL '10 days' ELSE NULL END,
+                        CASE WHEN cycle_rec.status = 'FORM_ACTIVE' THEN NOW() - INTERVAL '10 days' ELSE NULL END,
                         CASE WHEN rev_status = 'COMPLETED'
                              THEN CASE
                                  WHEN cycle_rec.cycle_id = '11111111-1111-1111-1111-111111111111'::UUID
@@ -890,7 +1120,7 @@ BEGIN
         JOIN   survey_assignments sa ON sa.assignment_id = sr.assignment_id
         JOIN   review_cycles rc      ON rc.cycle_id = sa.cycle_id
         WHERE  sr.status = 'COMPLETED'
-          AND  rc.status IN ('PUBLISHED','COMPLETED')
+          AND  rc.status = 'PUBLISHED'
     LOOP
         FOR q_rec IN
             SELECT question_id
@@ -909,7 +1139,7 @@ BEGIN
         END LOOP;
     END LOOP;
 
-    -- Also generate responses for the COMPLETED reviewers in the ACTIVE cycle
+    -- Also generate responses for the COMPLETED reviewers in the FORM_ACTIVE cycle
     FOR sr_rec IN
         SELECT sr.reviewer_id, sr.question_set, sr.reviewer_employee_id,
                sa.employee_id AS ratee_id
@@ -917,7 +1147,7 @@ BEGIN
         JOIN   survey_assignments sa ON sa.assignment_id = sr.assignment_id
         JOIN   review_cycles rc      ON rc.cycle_id = sa.cycle_id
         WHERE  sr.status = 'COMPLETED'
-          AND  rc.status = 'ACTIVE'
+          AND  rc.status = 'FORM_ACTIVE'
     LOOP
         FOR q_rec IN
             SELECT question_id
@@ -942,7 +1172,7 @@ BEGIN
         JOIN   survey_assignments sa ON sa.assignment_id = sr.assignment_id
         JOIN   review_cycles rc      ON rc.cycle_id = sa.cycle_id
         WHERE  sr.status = 'IN_PROGRESS'
-          AND  rc.status = 'ACTIVE'
+          AND  rc.status = 'FORM_ACTIVE'
         LIMIT 200   -- cap to keep data manageable
     LOOP
         FOR q_rec IN
@@ -1029,7 +1259,7 @@ BEGIN
     FOR cycle_rec IN
         SELECT cycle_id, status
         FROM   review_cycles
-        ORDER BY start_date
+        ORDER BY launch_date
     LOOP
         cnt := 0;
 
@@ -1044,8 +1274,8 @@ BEGIN
 
             -- Status logic
             stat := CASE
-                WHEN cycle_rec.status IN ('PUBLISHED','COMPLETED') THEN 'SUBMITTED'
-                WHEN cnt <= 150                                     THEN 'SUBMITTED'
+                WHEN cycle_rec.status = 'PUBLISHED' THEN 'SUBMITTED'
+                WHEN cnt <= 150                      THEN 'SUBMITTED'
                 ELSE 'DRAFT'
             END;
 
@@ -1138,7 +1368,7 @@ BEGIN
     FOR cycle_rec IN
         SELECT cycle_id, status
         FROM   review_cycles
-        ORDER BY start_date
+        ORDER BY launch_date
     LOOP
         FOR emp_rec IN
             SELECT e.employee_id, e.group_name
@@ -1146,7 +1376,7 @@ BEGIN
             WHERE  e.is_active = TRUE
             -- For active cycle, only employees with COMPLETED assignments get scores
             AND (
-                cycle_rec.status IN ('PUBLISHED','COMPLETED')
+                cycle_rec.status = 'PUBLISHED'
                 OR EXISTS (
                     SELECT 1 FROM survey_assignments sa
                     WHERE sa.employee_id = e.employee_id
@@ -1229,11 +1459,11 @@ BEGIN
 
             -- Per-reviewer-type breakdown
             rev_cat_sc := jsonb_build_object(
-                'MANAGER',          LEAST(ROUND(raw_score + 0.10, 2), 4.0),
-                'PEER',             LEAST(ROUND(raw_score - 0.10, 2), 4.0),
-                'DIRECT_REPORT',    LEAST(ROUND(raw_score + 0.20, 2), 4.0),
-                'CROSS_FUNCTIONAL', LEAST(ROUND(raw_score - 0.05, 2), 4.0),
-                'CXO',              LEAST(ROUND(raw_score + 0.05, 2), 4.0)
+                'REPORTING_MANAGER', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
+                'PEER',              LEAST(ROUND(raw_score - 0.10, 2), 4.0),
+                'SUBORDINATE',       LEAST(ROUND(raw_score + 0.20, 2), 4.0),
+                'CROSS_FUNCTIONAL',  LEAST(ROUND(raw_score - 0.05, 2), 4.0),
+                'DEPARTMENT_HEAD',   LEAST(ROUND(raw_score + 0.05, 2), 4.0)
             );
 
             -- Detailed reviewer-competency breakdown (2D: reviewer_type -> competency -> score)
@@ -1243,7 +1473,7 @@ BEGIN
             BEGIN
                 rev_comp_breakdown := CASE emp_rec.group_name
                     WHEN 'IC' THEN jsonb_build_object(
-                        'MANAGER', jsonb_build_object(
+                        'REPORTING_MANAGER', jsonb_build_object(
                             'COMM', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
                             'TEAM', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
                             'QUAL', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
@@ -1275,7 +1505,7 @@ BEGIN
                         )
                     )
                     WHEN 'TM' THEN jsonb_build_object(
-                        'MANAGER', jsonb_build_object(
+                        'REPORTING_MANAGER', jsonb_build_object(
                             'LEAD', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
                             'MENT', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
                             'DCSN', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
@@ -1297,7 +1527,7 @@ BEGIN
                             'PLAN', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
                             'RECG', LEAST(ROUND(raw_score + 0.05, 2), 4.0)
                         ),
-                        'DIRECT_REPORT', jsonb_build_object(
+                        'SUBORDINATE', jsonb_build_object(
                             'LEAD', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
                             'MENT', LEAST(ROUND(raw_score + 0.10, 2), 4.0),
                             'DCSN', LEAST(ROUND(raw_score + 0.40, 2), 4.0),
@@ -1321,7 +1551,7 @@ BEGIN
                         )
                     )
                     WHEN 'HOD' THEN jsonb_build_object(
-                        'CXO', jsonb_build_object(
+                        'DEPARTMENT_HEAD', jsonb_build_object(
                             'STRT', LEAST(ROUND(raw_score + 0.30, 2), 4.0),
                             'XFNL', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
                             'RSMG', LEAST(ROUND(raw_score + 0.20, 2), 4.0),
@@ -1345,7 +1575,7 @@ BEGIN
                             'CULT', LEAST(ROUND(raw_score + 0.00, 2), 4.0),
                             'PROF', LEAST(ROUND(raw_score - 0.15, 2), 4.0)
                         ),
-                        'DIRECT_REPORT', jsonb_build_object(
+                        'SUBORDINATE', jsonb_build_object(
                             'STRT', LEAST(ROUND(raw_score + 0.25, 2), 4.0),
                             'XFNL', LEAST(ROUND(raw_score + 0.05, 2), 4.0),
                             'RSMG', LEAST(ROUND(raw_score + 0.15, 2), 4.0),
@@ -1434,9 +1664,9 @@ DECLARE
 BEGIN
     -- ── Cycle-start notifications for all 3 cycles ────────────
     FOR cycle_rec IN
-        SELECT cycle_id, cycle_name, status, start_date
+        SELECT cycle_id, cycle_name, status, launch_date
         FROM   review_cycles
-        ORDER BY start_date
+        ORDER BY launch_date
     LOOP
         FOR emp_rec IN
             SELECT employee_id, full_name
@@ -1447,8 +1677,8 @@ BEGIN
         LOOP
             FOR ch IN SELECT unnest(ARRAY['EMAIL','TEAMS'])
             LOOP
-                notif_status := CASE WHEN cycle_rec.status IN ('PUBLISHED','COMPLETED') THEN 'SENT' ELSE 'SENT' END;
-                sent_ts      := cycle_rec.start_date + INTERVAL '1 hour';
+                notif_status := CASE WHEN cycle_rec.status = 'PUBLISHED' THEN 'SENT' ELSE 'SENT' END;
+                sent_ts      := cycle_rec.launch_date + INTERVAL '1 hour';
 
                 INSERT INTO notification_log
                     (template_id, recipient_id, channel, subject, body, status, sent_at)
@@ -1545,7 +1775,7 @@ BEGIN
         SELECT cycle_id, cycle_name
         FROM   review_cycles
         WHERE  status = 'PUBLISHED'
-        ORDER BY start_date
+        ORDER BY launch_date
     LOOP
         FOR emp_rec IN
             SELECT employee_id, full_name
@@ -1637,21 +1867,21 @@ VALUES
 
 ('EMP001','ACTIVATE', 'review_cycles',  '11111111-1111-1111-1111-111111111111',
  '{"status":"DRAFT"}',
- '{"status":"ACTIVE"}',
+ '{"status":"LAUNCHED"}',
  '10.0.1.5', '2025-01-06 09:00:00+00'),
 
 ('EMP001','UPDATE',   'review_cycles',  '11111111-1111-1111-1111-111111111111',
- '{"status":"ACTIVE"}',
- '{"status":"CLOSING"}',
- '10.0.1.5', '2025-06-30 18:00:00+00'),
+ '{"status":"LAUNCHED"}',
+ '{"status":"FORM_ACTIVE"}',
+ '10.0.1.5', '2025-01-15 00:00:00+00'),
 
 ('EMP001','UPDATE',   'review_cycles',  '11111111-1111-1111-1111-111111111111',
- '{"status":"CLOSING"}',
- '{"status":"COMPLETED"}',
- '10.0.1.5', '2025-07-03 10:00:00+00'),
+ '{"status":"FORM_ACTIVE"}',
+ '{"status":"FORM_CLOSED"}',
+ '10.0.1.5', '2025-06-30 18:00:00+00'),
 
 ('EMP001','PUBLISH',  'review_cycles',  '11111111-1111-1111-1111-111111111111',
- '{"status":"COMPLETED"}',
+ '{"status":"FORM_CLOSED"}',
  '{"status":"PUBLISHED"}',
  '10.0.1.5', '2025-07-05 09:00:00+00'),
 
@@ -1663,21 +1893,21 @@ VALUES
 
 ('EMP001','ACTIVATE', 'review_cycles',  '22222222-2222-2222-2222-222222222222',
  '{"status":"DRAFT"}',
- '{"status":"ACTIVE"}',
+ '{"status":"LAUNCHED"}',
  '10.0.1.5', '2025-07-07 09:00:00+00'),
 
 ('EMP001','UPDATE',   'review_cycles',  '22222222-2222-2222-2222-222222222222',
- '{"status":"ACTIVE"}',
- '{"status":"CLOSING"}',
- '10.0.1.5', '2025-12-31 18:00:00+00'),
+ '{"status":"LAUNCHED"}',
+ '{"status":"FORM_ACTIVE"}',
+ '10.0.1.5', '2025-07-15 00:00:00+00'),
 
 ('EMP001','UPDATE',   'review_cycles',  '22222222-2222-2222-2222-222222222222',
- '{"status":"CLOSING"}',
- '{"status":"COMPLETED"}',
- '10.0.1.5', '2026-01-03 10:00:00+00'),
+ '{"status":"FORM_ACTIVE"}',
+ '{"status":"FORM_CLOSED"}',
+ '10.0.1.5', '2025-12-31 18:00:00+00'),
 
 ('EMP001','PUBLISH',  'review_cycles',  '22222222-2222-2222-2222-222222222222',
- '{"status":"COMPLETED"}',
+ '{"status":"FORM_CLOSED"}',
  '{"status":"PUBLISHED"}',
  '10.0.1.5', '2026-01-05 09:00:00+00'),
 
@@ -1689,8 +1919,13 @@ VALUES
 
 ('EMP001','ACTIVATE', 'review_cycles',  '33333333-3333-3333-3333-333333333333',
  '{"status":"DRAFT"}',
- '{"status":"ACTIVE"}',
+ '{"status":"LAUNCHED"}',
  '10.0.1.5', '2026-02-02 09:00:00+00'),
+
+('EMP001','UPDATE',   'review_cycles',  '33333333-3333-3333-3333-333333333333',
+ '{"status":"LAUNCHED"}',
+ '{"status":"FORM_ACTIVE"}',
+ '10.0.1.5', '2026-02-15 00:00:00+00'),
 
 -- Reviewer config update
 ('EMP005','UPDATE',   'reviewer_config', 'singleton',
@@ -1781,9 +2016,18 @@ VALUES
 SELECT 'employees'            AS tbl, COUNT(*) FROM employees;
 SELECT 'competencies'         AS tbl, COUNT(*) FROM competencies;
 SELECT 'questions'            AS tbl, COUNT(*) FROM questions;
+SELECT 'question_templates'   AS tbl, COUNT(*) FROM question_templates;
+SELECT 'template_questions'   AS tbl, COUNT(*) FROM template_questions;
+SELECT 'rating_scales'        AS tbl, COUNT(*) FROM rating_scales;
+SELECT 'rating_scale_options' AS tbl, COUNT(*) FROM rating_scale_options;
+SELECT 'reviewer_types'       AS tbl, COUNT(*) FROM reviewer_types;
 SELECT 'reviewer_config'      AS tbl, COUNT(*) FROM reviewer_config;
 SELECT 'notification_templates' AS tbl, COUNT(*) FROM notification_templates;
 SELECT 'review_cycles'        AS tbl, COUNT(*) FROM review_cycles;
+SELECT 'cycle_groups'         AS tbl, COUNT(*) FROM cycle_groups;
+SELECT 'cycle_group_owners'   AS tbl, COUNT(*) FROM cycle_group_owners;
+SELECT 'cycle_template_questions' AS tbl, COUNT(*) FROM cycle_template_questions;
+SELECT 'cycle_reviewer_type_config' AS tbl, COUNT(*) FROM cycle_reviewer_type_config;
 SELECT 'survey_assignments'   AS tbl, COUNT(*) FROM survey_assignments;
 SELECT 'survey_reviewers'     AS tbl, COUNT(*) FROM survey_reviewers;
 SELECT 'survey_responses'     AS tbl, COUNT(*) FROM survey_responses;
